@@ -1,0 +1,43 @@
+{
+  "name": "infiniteboard-mcp",
+  "version": "0.1.0",
+  "description": "Let AI assistants (Claude, Cursor, VS Code, any MCP client) draw on your open Infiniteboard whiteboard",
+  "type": "module",
+  "bin": {
+    "infiniteboard-mcp": "server.mjs"
+  },
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "ws": "8.22.0",
+    "zod": "4.6.7"
+  },
+  "files": [
+    "server.mjs",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "whiteboard",
+    "claude",
+    "ai"
+  ],
+  "license": "Apache-2.0",
+  "author": "Isaiah Isayev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/isaiahoo/infiniteboard.git",
+    "directory": "mcp"
+  },
+  "homepage": "https://github.com/isaiahoo/infiniteboard/tree/main/mcp",
+  "bugs": {
+    "url": "https://github.com/isaiahoo/infiniteboard/issues"
+  }
+}
