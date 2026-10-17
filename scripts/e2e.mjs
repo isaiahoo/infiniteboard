@@ -7,6 +7,10 @@ import { join } from "node:path";
 const [port = "9333", appUrl = "http://127.0.0.1:5199/", outDir = "e2e-output"] = process.argv.slice(2);
 mkdirSync(outDir, { recursive: true });
 
+// Close this test's leftover tabs from earlier runs (they can block the database reset below).
+for (const t of await (await fetch(`http://127.0.0.1:${port}/json/list`)).json()) {
+  if (t.type === "page" && t.url.includes("mcp=3998")) await fetch(`http://127.0.0.1:${port}/json/close/${t.id}`);
+}
 const target = await (await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, { method: "PUT" })).json();
 const ws = new WebSocket(target.webSocketDebuggerUrl);
 await new Promise((r) => ws.addEventListener("open", r, { once: true }));
@@ -83,7 +87,9 @@ await send("Page.navigate", { url: `${appUrl}?${ISOLATE}` });
 await sleep(800);
 await evaluate("indexedDB.deleteDatabase('whiteboard'); localStorage.clear(); true");
 await send("Page.navigate", { url: `${appUrl}?sample&${ISOLATE}` });
-await sleep(1500);
+// Wait for the app (a cold dev server can take a few seconds on first load).
+for (let i = 0; i < 60 && !(await evaluate("!!window.__editor && document.querySelector('.board') !== null")); i++) await sleep(250);
+await sleep(300);
 
 let s = await state();
 check("sample board loads with all element types", ["frame", "text", "sticky", "shape", "arrow", "stroke"].every((t) => s.els.some((e) => e.type === t)), `${s.els.length} elements`);
@@ -194,6 +200,16 @@ await shot("05-ai-dialog.png");
 const desk = await evaluate("(() => { const b = [...document.querySelectorAll('.app-option')].find((x) => x.textContent.includes('Claude Desktop')); const r = b.getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; })()");
 await click(...desk);
 check("Claude Desktop tab shows config JSON", await evaluate("[...document.querySelectorAll('.steps pre')].some((p) => p.textContent.includes('\"mcpServers\"'))"));
+// Short window: the dialog must fit the viewport and its body must scroll to the last prompt.
+await send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 600, deviceScaleFactor: 1, mobile: false });
+await sleep(150);
+const fit = await evaluate("(() => { const d = document.querySelector('.ai-dialog').getBoundingClientRect(); const b = document.querySelector('.ai-dialog .dialog-body'); return { bottom: d.bottom, vh: innerHeight, scrollable: b.scrollHeight > b.clientHeight }; })()");
+check("dialog fits a short window and its body scrolls", fit.bottom <= fit.vh && fit.scrollable, JSON.stringify(fit));
+for (let i = 0; i < 6; i++) await send("Input.dispatchMouseEvent", { type: "mouseWheel", x: 640, y: 380, deltaX: 0, deltaY: 400 });
+await sleep(200);
+const lastVisible = await evaluate("(() => { const p = [...document.querySelectorAll('.prompts .copy-block')].pop().getBoundingClientRect(); return p.bottom <= innerHeight; })()");
+check("mouse wheel scrolls the dialog to the last prompt", lastVisible);
+await send("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
 await key("Escape", "Escape");
 check("Esc closes the dialog", await evaluate("!document.querySelector('.ai-dialog')"));
 check("AI button shows the waiting dot", await evaluate("!!document.querySelector('.ai-button.connecting .dot')"));
