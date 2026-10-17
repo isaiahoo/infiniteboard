@@ -91,7 +91,7 @@ export class Editor {
   private renderRequested = false;
   onRender: (() => void) | null = null;
   /** Set by the canvas host: renders the current view to a data URL (used by AI screenshots). */
-  capture: ((maxWidth: number) => Promise<string>) | null = null;
+  capture: ((maxWidth: number, format?: "png" | "jpeg") => Promise<string>) | null = null;
 
   constructor(readonly store: Store) {
     store.subscribe(() => {

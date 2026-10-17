@@ -11,6 +11,7 @@ import { Toolbar } from "./Toolbar";
 import { TopBar } from "./TopBar";
 import { addSampleBoard } from "./sample";
 import { AiBridge } from "../ai/bridge";
+import { RemoteLink } from "../ai/remote";
 import { HelpPanel } from "./HelpPanel";
 import { AiDialog } from "./AiDialog";
 import { Minimap } from "./Minimap";
@@ -53,6 +54,7 @@ function isEditableTarget(t: EventTarget | null): boolean {
 export function App() {
   const [editor, setEditor] = useState<Editor | null>(null);
   const [bridge, setBridge] = useState<AiBridge | null>(null);
+  const [remote, setRemote] = useState<RemoteLink | null>(null);
   const [help, setHelp] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   const [minimap, setMinimap] = useState(() => readPref(MINIMAP_KEY, "on") === "on");
@@ -71,6 +73,7 @@ export function App() {
   useEffect(() => {
     let cancelled = false;
     let aiBridge: AiBridge | null = null;
+    let remoteLink: RemoteLink | null = null;
     void loadDoc().then((doc) => {
       if (cancelled) return;
       const ed = new Editor(new Store(doc));
@@ -91,12 +94,15 @@ export function App() {
       // Dev-only handle for the end-to-end script (scripts/e2e.mjs).
       if (import.meta.env.DEV) (window as unknown as { __editor: Editor }).__editor = ed;
       aiBridge = new AiBridge(ed);
+      remoteLink = new RemoteLink(ed);
       setEditor(ed);
       setBridge(aiBridge);
+      setRemote(remoteLink);
     });
     return () => {
       cancelled = true;
       aiBridge?.dispose();
+      remoteLink?.dispose();
     };
   }, []);
 
@@ -189,18 +195,18 @@ export function App() {
     };
   }, [editor]);
 
-  if (!editor || !bridge) return <div className="loading">Loading board…</div>;
+  if (!editor || !bridge || !remote) return <div className="loading">Loading board…</div>;
   return (
     <div className="app">
       <Board editor={editor} />
       <BoardChrome editor={editor} />
       <TextEditor editor={editor} />
       <PropertyBar editor={editor} />
-      <TopBar editor={editor} bridge={bridge} minimap={minimap} onToggleMinimap={toggleMinimap} onHelp={() => setHelp(true)} onOpenAi={() => setAiOpen(true)} />
+      <TopBar editor={editor} bridge={bridge} remote={remote} minimap={minimap} onToggleMinimap={toggleMinimap} onHelp={() => setHelp(true)} onOpenAi={() => setAiOpen(true)} />
       <Toolbar editor={editor} />
       {minimap && <Minimap editor={editor} />}
       {help && <HelpPanel onClose={() => setHelp(false)} />}
-      {aiOpen && <AiDialog bridge={bridge} onClose={() => setAiOpen(false)} />}
+      {aiOpen && <AiDialog bridge={bridge} remote={remote} onClose={() => setAiOpen(false)} />}
     </div>
   );
 }

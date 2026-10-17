@@ -4,7 +4,7 @@ An open-source infinite-canvas whiteboard that AI assistants can work on directl
 
 You get sticky notes, shapes, text, frames, connectors, freehand drawing and images on an infinite canvas. An MCP server lets an assistant read the board, sketch diagrams, rearrange notes and check its own work with screenshots while you watch. Every change it makes is one undo step for you.
 
-- **Connects to AI assistants through MCP.** Works today with Claude Code, Claude Desktop, Cursor, VS Code and any other MCP client that can run a local server. Support for browser-based assistants such as claude.ai and ChatGPT, through a hosted connector, is in progress.
+- **Connects to AI assistants through MCP.** Use the hosted connector for apps that support remote MCP servers, such as Claude on the web and desktop (no install), or the local `npx` server for apps that run local MCP servers.
 - **No account, no backend.** Boards save in your browser and export to JSON.
 - **Built with Claude Code** in a single session.
 
@@ -44,15 +44,30 @@ The menu (☰) has export/import (`.json`), sample content, background, grid sty
 
 ## AI assistants (MCP)
 
-Click the **AI** button in the top bar. The dialog switches this board on for assistants, shows a live status (waiting → connected), and gives copy-paste setup steps for Claude Code, Claude Desktop, Cursor, VS Code and any other MCP app. For Claude Code, setup is one command:
+Click **AI** in the top bar. There are two ways to connect an assistant. Both offer the same tools.
+
+### Hosted connector (no install)
+
+Copy the connector address shown in the dialog (for the public site: `https://infiniteboard-three.vercel.app/api/mcp`) and add it as a remote MCP server in your app. In Claude: **Settings → Connectors → Add custom connector**, paste the address, then **Connect**. An InfiniteBoard page opens where you click **Allow access**; open it in the browser where your board is. There's no key to copy.
+
+- **Transport:** MCP Streamable HTTP, stateless, with JSON responses.
+- **Auth:** OAuth 2.1 with PKCE (S256), dynamic client registration (RFC 7591), protected-resource metadata (RFC 9728) and refresh-token rotation.
+- **Your board stays in your browser.** The open tab long-polls the server for commands and runs them locally. Commands and results pass through Redis briefly (they expire within a minute) and are never stored. Keep the board tab open while the assistant works.
+- **Revoking:** the dialog lists connected apps; *Disconnect* cuts an app off immediately. Only one tab per board answers at a time; opening the AI dialog in a tab makes it the active one.
+
+Verified end to end: the MCP SDK's Streamable HTTP client, plus OAuth via `scripts/remote-e2e.mjs`. The setup steps for Claude Code, Cursor and VS Code follow each app's documented remote-MCP flow, but haven't been tested against those apps yet. Other apps that support remote MCP servers with OAuth sign-in should work the same way.
+
+### Local server (`npx`)
+
+For apps that launch local MCP servers (Claude Code, Claude Desktop, Cursor, VS Code and others), or to keep everything on your machine:
 
 ```bash
 claude mcp add infiniteboard -- npx -y infiniteboard-mcp
 ```
 
-Then just ask, e.g. *"Turn the stickies on my board into a user-journey flow with a frame per stage"*. Every AI change is a normal undo step for you.
+The server (`mcp/`, published to npm as **infiniteboard-mcp**) runs over stdio, and the board tab connects to it at `ws://127.0.0.1:3917`. Find it in the dialog under *Run it locally instead*. Options: `--allow-origin <url>` lets a hosted board connect (the dialog adds it for you), and `--port <n>` changes the port (then open the board with `?mcp=<n>`).
 
-The server (`mcp/`, published to npm as **infiniteboard-mcp**) runs on your own machine, started by your assistant over stdio. The board tab connects to it through `ws://127.0.0.1:3917`, and only while its AI switch is on. When several tabs are switched on, the newest one wins and the others show *Connected in another tab*.
+### Tools
 
 | Tool | What it does |
 |---|---|
@@ -61,12 +76,12 @@ The server (`mcp/`, published to npm as **infiniteboard-mcp**) runs on your own 
 | `update_elements` | Move, resize, rotate, recolour, retext, re-route or lock existing elements |
 | `delete_elements` | Delete by id (frames take their contents), or `all: true` |
 | `focus_view`, `select_elements` | Move the user's view; highlight elements |
-| `get_screenshot` | PNG of the current view, so the assistant can check its work |
-| `undo`, `redo` | History, shared with the user |
+| `get_screenshot` | Image of the current view, so the assistant can check its work |
+| `undo`, `redo` | History, shared with the user. Every AI change is one undo step |
 
-Server options: `--allow-origin <url>` lets a hosted board (e.g. your Vercel URL) connect; localhost is always allowed, and the dialog adds this flag automatically. `--port <n>` changes the port (open the board with `?mcp=<n>`). Other origins are rejected, so a random website can't pose as your board. When you run the dev server, the dialog points at your local `mcp/server.mjs`, so you can test before publishing.
+### Running the hosted connector yourself
 
-**Publishing the server:** `cd mcp && npm publish` (the name `infiniteboard-mcp` was free at the time of writing).
+It's a set of Vercel functions in `api/` plus a Redis database (Upstash via the Vercel Marketplace works; the functions read `REDIS_URL`). Each idle open board with the connector on costs about one Redis command per 45 seconds. Tabs pause after 15 minutes in the background. For local development, put `REDIS_URL` in `.env.local`, then run `npm run dev:api` next to `npm run dev`.
 
 ## Architecture
 
@@ -86,8 +101,12 @@ src/canvas/render.ts      Canvas 2D renderer: grid, elements (viewport-culled), 
 src/interaction/editor.ts tool state machine: pointer gestures, keyboard, commands
 src/ai/commands.ts        board commands for AI assistants (validated; one undo step per call)
 src/ai/bridge.ts          opt-in WebSocket link from the tab to the local MCP server
+src/ai/remote.ts          board side of the hosted connector (long-poll, runs commands)
+src/connect/              consent page an AI app opens to request access
+api/                      Vercel functions: MCP endpoint, OAuth server, board relay (Redis)
 src/ui/                   React chrome: toolbar, top bar, property bar, minimap, help, inline text editor
-mcp/server.mjs            MCP server (stdio) + loopback WebSocket relay to the board tab
+mcp/tools.mjs             MCP tool definitions shared by the local server and the hosted endpoint
+mcp/server.mjs            local MCP server (stdio) + loopback WebSocket relay to the board tab
 ```
 
 Key design points:

@@ -30,14 +30,20 @@ export function Board({ editor }: { editor: Editor }) {
       render(ctx, editor.doc, editor.camera, editor.viewW, editor.viewH, dpr, editor.overlay, () => editor.requestRender());
     };
     editor.onRender = draw;
-    editor.capture = async (maxWidth) => {
+    editor.capture = async (maxWidth, format = "png") => {
       draw();
       const k = Math.min(1, maxWidth / canvas.width);
       const out = document.createElement("canvas");
       out.width = Math.round(canvas.width * k);
       out.height = Math.round(canvas.height * k);
-      out.getContext("2d")!.drawImage(canvas, 0, 0, out.width, out.height);
-      return out.toDataURL("image/png");
+      const g = out.getContext("2d")!;
+      if (format === "jpeg") {
+        // JPEG has no alpha: paint the board background first.
+        g.fillStyle = editor.doc.settings.background;
+        g.fillRect(0, 0, out.width, out.height);
+      }
+      g.drawImage(canvas, 0, 0, out.width, out.height);
+      return format === "jpeg" ? out.toDataURL("image/jpeg", 0.85) : out.toDataURL("image/png");
     };
     const resize = () => {
       const dpr = window.devicePixelRatio || 1;

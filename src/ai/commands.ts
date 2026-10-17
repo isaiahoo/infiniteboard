@@ -339,7 +339,7 @@ export async function runCommand(editor: Editor, method: string, params: Record<
       return { ok: true, canRedo: editor.store.canRedo };
     case "screenshot": {
       if (!editor.capture) throw new Error("Screenshot is not available in this environment");
-      return { image: await editor.capture(num(params.maxWidth) ?? 1280) };
+      return { image: await editor.capture(num(params.maxWidth) ?? 1280, params.format === "jpeg" ? "jpeg" : "png") };
     }
     default:
       throw new Error(`Unknown method "${method}"`);

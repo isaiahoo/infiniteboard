@@ -77,7 +77,7 @@ for (let i = 0; i < 20 && !board; i++) {
 }
 await cdp("Runtime.evaluate", { expression: "document.querySelector('.ai-button').click()" });
 await sleep(200);
-const connectedUi = (await cdp("Runtime.evaluate", { expression: "!!document.querySelector('.ai-state.connected') && !!document.querySelector('.ai-button.connected')", returnByValue: true })).result.value;
+const connectedUi = (await cdp("Runtime.evaluate", { expression: "!!document.querySelector('.local-status.connected') && !!document.querySelector('.ai-button.connected')", returnByValue: true })).result.value;
 check("dialog and AI button show Connected", connectedUi === true);
 const { data: dlg } = await cdp("Page.captureScreenshot", { format: "png" });
 writeFileSync(join(outDir, "mcp-dialog-connected.png"), Buffer.from(dlg, "base64"));

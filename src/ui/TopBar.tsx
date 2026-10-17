@@ -1,5 +1,6 @@
 import { useRef, useState, useSyncExternalStore } from "react";
 import type { AiBridge } from "../ai/bridge";
+import type { RemoteLink } from "../ai/remote";
 import { downloadBlob, exportJson, importJson } from "../core/persist";
 import { emptyDoc } from "../core/model";
 import type { Editor } from "../interaction/editor";
@@ -17,6 +18,7 @@ const BACKGROUNDS = [
 interface Props {
   editor: Editor;
   bridge: AiBridge;
+  remote: RemoteLink;
   minimap: boolean;
   onToggleMinimap: () => void;
   onHelp: () => void;
@@ -30,9 +32,16 @@ const AI_TITLE = {
   replaced: "AI assistant is connected to another tab",
 } as const;
 
-export function TopBar({ editor, bridge, minimap, onToggleMinimap, onHelp, onOpenAi }: Props) {
+export function TopBar({ editor, bridge, remote, minimap, onToggleMinimap, onHelp, onOpenAi }: Props) {
   useEditor(editor);
-  const aiStatus = useSyncExternalStore(bridge.subscribe, () => bridge.status);
+  const localStatus = useSyncExternalStore(bridge.subscribe, () => bridge.status);
+  useSyncExternalStore(remote.subscribe, remote.getSnapshot);
+  // One indicator for both connection types: green once an app can use the board, amber while waiting.
+  const aiStatus: keyof typeof AI_TITLE =
+    localStatus === "connected" || (remote.status === "ready" && remote.apps.length > 0) ? "connected"
+    : remote.status === "replaced" || localStatus === "replaced" ? "replaced"
+    : remote.status === "off" && localStatus === "off" ? "off"
+    : "connecting";
   const [menu, setMenu] = useState(false);
   const file = useRef<HTMLInputElement>(null);
   const { store } = editor;

@@ -1,0 +1,83 @@
+html,
+body,
+#root {
+  height: auto;
+  min-height: 100%;
+  overflow: auto;
+}
+
+#root {
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+}
+
+.connect-card {
+  width: min(460px, 100%);
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  padding: 24px;
+  line-height: 1.5;
+}
+
+.connect-card h1 {
+  font-size: 15px;
+  margin: 0 0 16px;
+  color: var(--ui-muted);
+  font-weight: 600;
+}
+
+.connect-card .lead {
+  font-size: 20px;
+  margin: 0 0 14px;
+}
+
+.board-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: 10px;
+  background: #f8f8f6;
+}
+
+.board-summary span {
+  color: var(--ui-muted);
+  white-space: nowrap;
+}
+
+.connect-card ul {
+  padding-left: 18px;
+  color: #3a3a3a;
+}
+
+.connect-card .warn {
+  background: #fff7e0;
+  border: 1px solid #f3dfa3;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.connect-card .error {
+  color: #b42318;
+}
+
+.connect-card .muted {
+  color: var(--ui-muted);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.actions button {
+  height: 38px;
+  padding: 0 16px;
+  border: 1px solid var(--ui-border);
+}

@@ -1,39 +1,29 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { DEFAULT_BRIDGE_PORT, type AiBridge } from "../ai/bridge";
+import type { RemoteLink } from "../ai/remote";
 import { Icon } from "./icons";
 
 export const MCP_PACKAGE = "infiniteboard-mcp";
 const SERVER_NAME = "infiniteboard";
 
-type AppId = "claude-code" | "claude-desktop" | "cursor" | "vscode" | "other";
+type AppId = "claude" | "claude-code" | "cursor" | "vscode" | "other";
 
 const APPS: { id: AppId; name: string; sub: string }[] = [
+  { id: "claude", name: "Claude", sub: "claude.ai & desktop app" },
   { id: "claude-code", name: "Claude Code", sub: "terminal" },
-  { id: "claude-desktop", name: "Claude Desktop", sub: "Mac & Windows app" },
   { id: "cursor", name: "Cursor", sub: "editor" },
   { id: "vscode", name: "VS Code", sub: "Copilot agent mode" },
-  { id: "other", name: "Something else", sub: "any MCP app" },
+  { id: "other", name: "Something else", sub: "remote MCP apps" },
 ];
 
 const PROMPTS = [
-  "Look at my board and summarise what's on it.",
+  "Look at my InfiniteBoard and summarise what's on it.",
   "Draw a flowchart of a user signing up, with a decision for email verification.",
   "Group the sticky notes by theme into frames and give each frame a title.",
   "Make a retro board: three frames — Went well, To improve, Actions.",
 ];
 
-/** The command that starts the MCP server, tailored to where this board is running. */
-function serverCommand(): { command: string; args: string[] } {
-  const args: string[] = [];
-  const local = ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
-  if (!local) args.push("--allow-origin", location.origin);
-  const port = Number(new URLSearchParams(location.search).get("mcp"));
-  if (port && port !== DEFAULT_BRIDGE_PORT) args.push("--port", String(port));
-  // Dev server: run the server file from this checkout (works before the npm package is published).
-  if (__LOCAL_MCP_SERVER__) return { command: "node", args: [__LOCAL_MCP_SERVER__, ...args] };
-  return { command: "npx", args: ["-y", MCP_PACKAGE, ...args] };
-}
-
+const isLocalHost = () => ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
 const shellQuote = (s: string) => (/^[\w@%+=:,./-]+$/.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`);
 
 function CopyBlock({ text, label }: { text: string; label?: string }) {
@@ -57,59 +47,106 @@ function CopyBlock({ text, label }: { text: string; label?: string }) {
   );
 }
 
-function Steps({ app }: { app: AppId }) {
-  const { command, args } = serverCommand();
-  const oneLine = [command, ...args].map(shellQuote).join(" ");
-  const json = JSON.stringify({ mcpServers: { [SERVER_NAME]: { command, args } } }, null, 2);
+function RemoteSteps({ app, url }: { app: AppId; url: string }) {
   switch (app) {
+    case "claude":
+      return (
+        <ol className="steps">
+          <li>In Claude open <b>Settings → Connectors</b> and choose <b>Add custom connector</b>.</li>
+          <li>Name it <b>InfiniteBoard</b>, paste the address above and click <b>Add</b>.</li>
+          <li>Click <b>Connect</b>. In the window that opens, choose <b>Allow access</b>. Open that window in the browser where your board is.</li>
+          <li>In a chat, turn on InfiniteBoard in the tools menu and ask away.</li>
+        </ol>
+      );
     case "claude-code":
       return (
         <ol className="steps">
-          <li>Run this in your terminal:<CopyBlock text={`claude mcp add ${SERVER_NAME} -- ${oneLine}`} /></li>
-          <li>Start <code>claude</code> (or restart it) and ask it to draw on your board.</li>
-        </ol>
-      );
-    case "claude-desktop":
-      return (
-        <ol className="steps">
-          <li>In Claude Desktop open <b>Settings → Developer → Edit Config</b>.</li>
-          <li>Paste this into <code>claude_desktop_config.json</code> (merge with any existing <code>mcpServers</code>):<CopyBlock text={json} /></li>
-          <li>Quit and reopen Claude Desktop. “{SERVER_NAME}” appears in the tools menu.</li>
+          <li>Run this in your terminal:<CopyBlock text={`claude mcp add --transport http ${SERVER_NAME} ${url}`} /></li>
+          <li>In Claude Code type <code>/mcp</code>, pick <b>{SERVER_NAME}</b> and choose <b>Authenticate</b>, then allow access in the browser.</li>
         </ol>
       );
     case "cursor":
       return (
         <ol className="steps">
-          <li>Open <b>Cursor Settings → MCP → Add new global MCP server</b>.</li>
-          <li>Paste this into <code>mcp.json</code> and save:<CopyBlock text={json} /></li>
-          <li>Use the agent in chat and ask it to work on your board.</li>
+          <li>Open <b>Cursor Settings → MCP → Add new global MCP server</b> and add:<CopyBlock text={JSON.stringify({ mcpServers: { [SERVER_NAME]: { url } } }, null, 2)} /></li>
+          <li>Click <b>Connect</b> (or “Needs login”) next to {SERVER_NAME} and allow access in the browser.</li>
         </ol>
       );
     case "vscode":
       return (
         <ol className="steps">
-          <li>Run this in your terminal:<CopyBlock text={`code --add-mcp ${shellQuote(JSON.stringify({ name: SERVER_NAME, command, args }))}`} /></li>
-          <li>Open Copilot Chat in <b>Agent</b> mode, check “{SERVER_NAME}” under tools, and ask away.</li>
+          <li>Run this in your terminal:<CopyBlock text={`code --add-mcp ${shellQuote(JSON.stringify({ name: SERVER_NAME, type: "http", url }))}`} /></li>
+          <li>Start the server from the MCP list, sign in when asked, and use Copilot Chat in <b>Agent</b> mode.</li>
         </ol>
       );
     default:
       return (
-        <ol className="steps">
-          <li>Add a <b>stdio</b> MCP server that runs this command:<CopyBlock text={oneLine} /></li>
-          <li>Most apps accept this JSON format:<CopyBlock text={json} /></li>
-        </ol>
+        <p className="muted">
+          Add a remote MCP server with the address above. It uses the Streamable HTTP transport and OAuth sign-in (with
+          dynamic client registration), which most apps that support remote MCP servers handle automatically.
+        </p>
       );
   }
 }
 
-export function AiDialog({ bridge, onClose }: { bridge: AiBridge; onClose: () => void }) {
-  const status = useSyncExternalStore(bridge.subscribe, () => bridge.status);
-  const [app, setApp] = useState<AppId>("claude-code");
+/** The command that starts the local MCP server, tailored to where this board is running. */
+function localCommand(): { command: string; args: string[] } {
+  const args: string[] = [];
+  if (!isLocalHost()) args.push("--allow-origin", location.origin);
+  const port = Number(new URLSearchParams(location.search).get("mcp"));
+  if (port && port !== DEFAULT_BRIDGE_PORT) args.push("--port", String(port));
+  if (__LOCAL_MCP_SERVER__) return { command: "node", args: [__LOCAL_MCP_SERVER__, ...args] };
+  return { command: "npx", args: ["-y", MCP_PACKAGE, ...args] };
+}
 
-  // Opening the dialog is the user's intent to connect.
+function LocalSection({ bridge }: { bridge: AiBridge }) {
+  const status = useSyncExternalStore(bridge.subscribe, () => bridge.status);
+  const { command, args } = localCommand();
+  const oneLine = [command, ...args].map(shellQuote).join(" ");
+  const json = JSON.stringify({ mcpServers: { [SERVER_NAME]: { command, args } } }, null, 2);
   useEffect(() => {
     if (bridge.status === "off") bridge.enable();
   }, [bridge]);
+  return (
+    <div className="local-section">
+      <p className="muted">
+        Runs a small server on your computer (needs Node.js 18+); your assistant starts it. Works with any MCP app that can
+        launch local servers.
+      </p>
+      <p className={`local-status ${status}`}>
+        <span className="dot" />
+        {status === "connected" ? "Local server connected" : status === "replaced" ? "Connected in another tab" : "Waiting for the local server…"}
+      </p>
+      <ol className="steps">
+        <li>Claude Code:<CopyBlock text={`claude mcp add ${SERVER_NAME} -- ${oneLine}`} /></li>
+        <li>Claude Desktop, Cursor and others: add to the app's MCP config, then restart it:<CopyBlock text={json} /></li>
+      </ol>
+      <button onClick={() => bridge.disable()}>Turn off local connection</button>
+    </div>
+  );
+}
+
+function ago(ms: number) {
+  const s = Math.round((Date.now() - ms) / 1000);
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.round(s / 60)} min ago`;
+  if (s < 86400) return `${Math.round(s / 3600)} h ago`;
+  return `${Math.round(s / 86400)} d ago`;
+}
+
+export function AiDialog({ bridge, remote, onClose }: { bridge: AiBridge; remote: RemoteLink; onClose: () => void }) {
+  useSyncExternalStore(remote.subscribe, remote.getSnapshot);
+  const [app, setApp] = useState<AppId>("claude");
+  const [showLocal, setShowLocal] = useState(() => bridge.status !== "off");
+  const url = `${location.origin}/api/mcp`;
+  const { status, apps } = remote;
+
+  // Opening the dialog makes this tab the one assistants talk to, and keeps the app list live.
+  useEffect(() => {
+    remote.start(true);
+    const timer = setInterval(() => void remote.refreshApps(), 5000);
+    return () => clearInterval(timer);
+  }, [remote]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -117,6 +154,7 @@ export function AiDialog({ bridge, onClose }: { bridge: AiBridge; onClose: () =>
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  const connected = apps.length > 0;
   return (
     <div className="dialog-backdrop" onPointerDown={onClose}>
       <div className="dialog ai-dialog" role="dialog" aria-modal="true" aria-labelledby="ai-title" onPointerDown={(e) => e.stopPropagation()}>
@@ -127,24 +165,49 @@ export function AiDialog({ bridge, onClose }: { bridge: AiBridge; onClose: () =>
 
         <div className="dialog-body">
           <p className="hero">Connect your AI assistant — and let it draw for you.</p>
-          <p className="muted">Claude, Cursor or any MCP app can read this board, add sticky notes, shapes and diagrams, and tidy things up. Every change can be undone with {navigator.platform.includes("Mac") ? "⌘" : "Ctrl"}+Z.</p>
+          <p className="muted">
+            Claude and other MCP apps can read this board, add sticky notes, shapes and diagrams, and tidy things up. Every
+            change can be undone with {navigator.platform.includes("Mac") ? "⌘" : "Ctrl"}+Z.
+          </p>
 
-          <div className={`ai-state ${status}`} role="status" aria-live="polite">
+          <div className={`ai-state ${status === "ready" && connected ? "connected" : status}`} role="status" aria-live="polite">
             <span className="dot" />
             <div>
-              {status === "connected" && <><b>Connected.</b> Your assistant can see and edit this board. Just ask it.</>}
-              {status === "connecting" && <><b>Waiting for your assistant…</b> Set it up below once; after that it connects by itself whenever the assistant runs.</>}
-              {status === "replaced" && <><b>Connected in another tab.</b> Only one board can be connected at a time.</>}
-              {status === "off" && <><b>Off.</b> This board isn’t reachable by any assistant.</>}
+              {status === "ready" && connected && (
+                <><b>Ready.</b> {apps.length === 1 ? apps[0].clientName : `${apps.length} apps`} can use this board{remote.lastUsed ? ` · last used ${ago(remote.lastUsed)}` : ""}.</>
+              )}
+              {status === "ready" && !connected && <><b>Ready to connect.</b> Add InfiniteBoard to your AI app with the steps below.</>}
+              {status === "connecting" && <><b>Connecting…</b></>}
+              {status === "replaced" && <><b>Open in another tab.</b> Assistants are working with your board in another tab.</>}
+              {status === "paused" && <><b>Paused</b> while the tab was in the background.</>}
+              {status === "error" && <><b>Can't reach InfiniteBoard.</b> Retrying… check your internet connection.</>}
+              {status === "off" && <><b>Off.</b> Assistants can't reach this board.</>}
             </div>
-            {status === "replaced" || status === "off" ? (
-              <button className="primary" onClick={() => bridge.enable()}>Use this board</button>
+            {status === "replaced" || status === "off" || status === "paused" ? (
+              <button className="primary" onClick={() => remote.start(true)}>Use this tab</button>
             ) : (
-              <button onClick={() => bridge.disable()}>Turn off</button>
+              <button onClick={() => remote.stop()}>Turn off</button>
             )}
           </div>
 
-          <h3>1 · Pick your app</h3>
+          {connected && (
+            <ul className="app-list">
+              {apps.map((a) => (
+                <li key={a.id}>
+                  <span><b>{a.clientName}</b> <span className="muted">connected {ago(a.created)}</span></span>
+                  <button onClick={() => void remote.disconnect(a.id)}>Disconnect</button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <h3>1 · Copy the connector address</h3>
+          <CopyBlock text={url} label="Copy connector address" />
+          {isLocalHost() && (
+            <p className="muted small">This is a local development server, which Claude.ai can't reach. Use your deployed site's address.</p>
+          )}
+
+          <h3>2 · Add it to your app</h3>
           <div className="app-picker" role="tablist">
             {APPS.map((a) => (
               <button key={a.id} role="tab" aria-selected={app === a.id} className={app === a.id ? "app-option active" : "app-option"} onClick={() => setApp(a.id)}>
@@ -153,10 +216,11 @@ export function AiDialog({ bridge, onClose }: { bridge: AiBridge; onClose: () =>
               </button>
             ))}
           </div>
-
-          <h3>2 · Follow the steps</h3>
-          <Steps app={app} />
-          <p className="muted small">Needs Node.js 18 or newer. The assistant talks to this tab through your own computer only; nothing is sent to our servers.</p>
+          <RemoteSteps app={app} url={url} />
+          <p className="muted small">
+            No key to copy: your app opens an InfiniteBoard sign-in where you approve access. Your board stays in this
+            browser; keep it open while the assistant works.
+          </p>
 
           <h3>3 · Try asking</h3>
           <div className="prompts">
@@ -164,6 +228,11 @@ export function AiDialog({ bridge, onClose }: { bridge: AiBridge; onClose: () =>
               <CopyBlock key={p} text={p} label={`Copy prompt: ${p}`} />
             ))}
           </div>
+
+          <details className="local" open={showLocal} onToggle={(e) => setShowLocal((e.target as HTMLDetailsElement).open)}>
+            <summary>Run it locally instead</summary>
+            {showLocal && <LocalSection bridge={bridge} />}
+          </details>
         </div>
       </div>
     </div>

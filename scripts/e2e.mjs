@@ -194,12 +194,12 @@ await shot("03-after-interactions.png");
 const aiBtn = await evaluate("(() => { const r = document.querySelector('.ai-button').getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; })()");
 await click(...aiBtn);
 check("AI button opens the connect dialog", await evaluate("!!document.querySelector('.ai-dialog')"));
-check("dialog puts the board in waiting state", await evaluate("!!document.querySelector('.ai-state.connecting')"));
-check("Claude Code step shows a one-line command", await evaluate("[...document.querySelectorAll('.steps pre')].some((p) => p.textContent.startsWith('claude mcp add infiniteboard -- '))"));
+check("dialog shows the connection state", await evaluate("!!document.querySelector('.ai-state')"));
+check("dialog shows the connector address", await evaluate("[...document.querySelectorAll('.copy-block pre')].some((p) => p.textContent === location.origin + '/api/mcp')"));
 await shot("05-ai-dialog.png");
-const desk = await evaluate("(() => { const b = [...document.querySelectorAll('.app-option')].find((x) => x.textContent.includes('Claude Desktop')); const r = b.getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; })()");
-await click(...desk);
-check("Claude Desktop tab shows config JSON", await evaluate("[...document.querySelectorAll('.steps pre')].some((p) => p.textContent.includes('\"mcpServers\"'))"));
+const cc = await evaluate("(() => { const b = [...document.querySelectorAll('.app-option')].find((x) => x.textContent.includes('Claude Code')); const r = b.getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; })()");
+await click(...cc);
+check("Claude Code tab shows the remote add command", await evaluate("[...document.querySelectorAll('.steps pre')].some((p) => p.textContent.startsWith('claude mcp add --transport http infiniteboard '))"));
 // Short window: the dialog must fit the viewport and its body must scroll to the last prompt.
 await send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 600, deviceScaleFactor: 1, mobile: false });
 await sleep(150);

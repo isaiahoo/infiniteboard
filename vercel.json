@@ -1,0 +1,24 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    { "source": "/.well-known/oauth-protected-resource", "destination": "/api/well-known?doc=resource" },
+    { "source": "/.well-known/oauth-protected-resource/:path*", "destination": "/api/well-known?doc=resource" },
+    { "source": "/.well-known/oauth-authorization-server", "destination": "/api/well-known?doc=server" },
+    { "source": "/.well-known/oauth-authorization-server/:path*", "destination": "/api/well-known?doc=server" },
+    { "source": "/connect", "destination": "/connect.html" }
+  ],
+  "functions": {
+    "api/mcp.js": { "maxDuration": 60 },
+    "api/board/[action].js": { "maxDuration": 60 }
+  },
+  "headers": [
+    {
+      "source": "/connect(.html)?",
+      "headers": [
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "Content-Security-Policy", "value": "frame-ancestors 'none'" },
+        { "key": "Referrer-Policy", "value": "no-referrer" }
+      ]
+    }
+  ]
+}

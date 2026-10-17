@@ -684,3 +684,76 @@ button.primary {
   border: 1px solid var(--ui-border);
   background: #fff;
 }
+
+.app-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.app-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px 6px 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+}
+
+.app-list button,
+.local-section > button {
+  border: 1px solid var(--ui-border);
+  height: 30px;
+  font-size: 13px;
+}
+
+details.local {
+  margin-top: 22px;
+  border-top: 1px solid var(--ui-border);
+  padding-top: 14px;
+}
+
+details.local summary {
+  cursor: pointer;
+  color: var(--ui-muted);
+  font-size: 14px;
+}
+
+.local-section {
+  margin-top: 10px;
+}
+
+.local-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.local-status .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #f5a623;
+}
+
+.local-status.connected .dot {
+  background: #2fb36b;
+}
+
+.ai-state.ready .dot {
+  background: #3e63dd;
+}
+
+.ai-state.error .dot,
+.ai-state.replaced .dot {
+  background: #e5484d;
+}
+
+.app-picker + .steps {
+  margin-top: 14px;
+}
