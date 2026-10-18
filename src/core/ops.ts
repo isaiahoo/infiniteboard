@@ -279,3 +279,12 @@ export function pastePayload(d: Draft, payload: ClipboardPayload, at: Vec): stri
   assignFrames(d, top.filter((c) => !c.parentId).map((c) => c.id));
   return top.map((c) => c.id);
 }
+
+/** Replaces the board's content with `doc`'s (restoring a version) as one undoable change. */
+export function replaceContent(d: Draft, doc: Doc) {
+  for (const id of [...d.doc.order]) if (!(id in doc.elements)) d.remove(id);
+  for (const a of Object.values(doc.assets)) if (!d.doc.assets[a.id]) d.addAsset(a);
+  for (const id of doc.order) if (doc.elements[id]) d.set(doc.elements[id]);
+  d.setOrder(doc.order.filter((id) => doc.elements[id]));
+  d.setTitle(doc.title);
+}

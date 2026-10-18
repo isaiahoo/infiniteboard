@@ -1,7 +1,8 @@
 import type { Vec } from "./geom";
 
 export type ElementType = "shape" | "sticky" | "text" | "frame" | "image" | "stroke" | "arrow";
-export type ShapeKind = "rect" | "roundrect" | "ellipse" | "diamond" | "triangle";
+export type ShapeKind = "rect" | "roundrect" | "ellipse" | "diamond" | "triangle" | "hexagon" | "parallelogram" | "cylinder";
+export const SHAPE_KINDS: readonly ShapeKind[] = ["rect", "roundrect", "ellipse", "diamond", "triangle", "hexagon", "parallelogram", "cylinder"];
 export type TextAlign = "left" | "center" | "right";
 export type ArrowRoute = "straight" | "elbow" | "curved";
 export type ArrowHead = "none" | "open" | "filled";
@@ -96,6 +97,11 @@ export interface ArrowEl extends Base {
   label: string;
   /** Position of the label along the path, 0..1. */
   labelT: number;
+  /**
+   * Elbow route from auto-layout: bend points relative to the start, valid while the end stays at
+   * `span` from the start (moving the whole diagram keeps it; moving one end falls back to auto routing).
+   */
+  via?: { points: Vec[]; span: Vec } | null;
 }
 
 export type BoardElement = ShapeEl | StickyEl | TextEl | FrameEl | ImageEl | StrokeEl | ArrowEl;

@@ -18,9 +18,9 @@ const APPS: { id: AppId; name: string; sub: string }[] = [
 
 export const PROMPTS = [
   "Look at my InfiniteBoard and summarise what's on it.",
+  "Plan a habit-tracking app on my InfiniteBoard: users, key features, architecture and a roadmap.",
   "Draw a flowchart of a user signing up, with a decision for email verification.",
-  "Group the sticky notes by theme into frames and give each frame a title.",
-  "Make a retro board: three frames — Went well, To improve, Actions.",
+  "Make a mind map of ideas for growing a newsletter.",
 ];
 
 const isLocalHost = () => ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);

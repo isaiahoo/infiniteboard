@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { STICKY_COLORS, STROKE_WIDTHS, type ShapeKind } from "../core/model";
+import { SHAPE_KINDS, STICKY_COLORS, STROKE_WIDTHS } from "../core/model";
 import { makeImage } from "../core/ops";
 import { imageFileToAsset } from "../core/persist";
 import type { Editor, Tool } from "../interaction/editor";
@@ -19,7 +19,7 @@ const TOOLS: { tool: Tool; icon: IconName; label: string; key: string }[] = [
   { tool: "eraser", icon: "eraser", label: "Eraser", key: "E" },
 ];
 
-const SHAPES: ShapeKind[] = ["rect", "roundrect", "ellipse", "diamond", "triangle"];
+const SHAPES = SHAPE_KINDS;
 const INKS = ["#1e1e1e", "#e5484d", "#3e63dd", "#30a46c", "#f76b15", "#8e4ec6"];
 const MARKERS = ["#ffd84d", "#7fe0c3", "#ff8fa3", "#8ec5ff"];
 

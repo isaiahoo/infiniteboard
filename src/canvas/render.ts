@@ -1,5 +1,5 @@
 import { visibleWorldRect, worldToScreen, type Camera } from "../core/camera";
-import {
+import { cylinderCap, shapeTextBox,
   arrowGeometry, arrowLabelRect, boxOf, elementBounds, endPoint, frameTitleRect, LABEL_FONT_SIZE, paintOrder,
   strokeWorldPoints,
 } from "../core/elements";
@@ -210,6 +210,35 @@ function shapePath(ctx: CanvasRenderingContext2D, el: ShapeEl) {
       ctx.lineTo(x, y + h);
       ctx.closePath();
       break;
+    case "hexagon": {
+      const k = Math.min(w * 0.2, h * 0.5);
+      ctx.moveTo(x + k, y);
+      ctx.lineTo(x + w - k, y);
+      ctx.lineTo(x + w, y + h / 2);
+      ctx.lineTo(x + w - k, y + h);
+      ctx.lineTo(x + k, y + h);
+      ctx.lineTo(x, y + h / 2);
+      ctx.closePath();
+      break;
+    }
+    case "parallelogram": {
+      const k = Math.min(w * 0.2, h * 0.5);
+      ctx.moveTo(x + k, y);
+      ctx.lineTo(x + w, y);
+      ctx.lineTo(x + w - k, y + h);
+      ctx.lineTo(x, y + h);
+      ctx.closePath();
+      break;
+    }
+    case "cylinder": {
+      const c = cylinderCap(w, h);
+      ctx.moveTo(x, y + c);
+      ctx.ellipse(x + w / 2, y + c, w / 2, c, 0, Math.PI, 0);
+      ctx.lineTo(x + w, y + h - c);
+      ctx.ellipse(x + w / 2, y + h - c, w / 2, c, 0, 0, Math.PI);
+      ctx.closePath();
+      break;
+    }
   }
 }
 
@@ -227,9 +256,15 @@ function drawShape(ctx: CanvasRenderingContext2D, el: ShapeEl, editing: boolean,
     ctx.lineJoin = "round";
     ctx.stroke();
   }
+  if (el.kind === "cylinder" && el.strokeWidth > 0) {
+    // The front rim of the top cap.
+    const c = cylinderCap(el.w, el.h);
+    ctx.beginPath();
+    ctx.ellipse(el.x + el.w / 2, el.y + c, el.w / 2, c, 0, 0, Math.PI);
+    ctx.stroke();
+  }
   if (!editing && el.text) {
-    const pad = Math.max(6, Math.min(el.w, el.h) * 0.1);
-    drawTextBox(ctx, el.text, { x: el.x + pad, y: el.y + pad, w: el.w - pad * 2, h: el.h - pad * 2 }, el.fontSize, el.color, el.align, "middle", zoom, el.bold, el.italic);
+    drawTextBox(ctx, el.text, shapeTextBox(el), el.fontSize, el.color, el.align, "middle", zoom, el.bold, el.italic);
   }
 }
 

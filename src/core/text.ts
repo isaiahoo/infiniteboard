@@ -29,6 +29,11 @@ if (typeof document !== "undefined") {
   }
 }
 
+/** Width of `text` in `font` (canvas units). */
+export function measureText(text: string, font: string): number {
+  return measureImpl(text, font);
+}
+
 export function setMeasure(m: Measure) {
   measureImpl = m;
 }

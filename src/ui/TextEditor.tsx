@@ -1,6 +1,6 @@
 import { useEffect, useRef, type CSSProperties } from "react";
 import { stickyFontSize } from "../canvas/render";
-import { arrowGeometry, boxOf, frameTitleRect, LABEL_FONT_SIZE, pointAlong } from "../core/elements";
+import { arrowGeometry, boxOf, frameTitleRect, LABEL_FONT_SIZE, pointAlong, shapeTextBox } from "../core/elements";
 import { center, rotate, type Rect } from "../core/geom";
 import type { BoardElement } from "../core/model";
 import { FONT_FAMILY, LINE_HEIGHT, STICKY_PADDING, TEXT_PADDING } from "../core/text";
@@ -68,8 +68,7 @@ export function TextEditor({ editor }: { editor: Editor }) {
       style = { fontSize: stickyFontSize(el), color: el.color, textAlign: el.align, height: box.h, display: "flex", flexDirection: "column", justifyContent: "center" };
       break;
     case "shape": {
-      const pad = Math.max(6, Math.min(el.w, el.h) * 0.1);
-      box = { x: el.x + pad, y: el.y + pad, w: el.w - pad * 2, h: el.h - pad * 2 };
+      box = shapeTextBox(el);
       angle = el.angle;
       style = { fontSize: el.fontSize, color: el.color, textAlign: el.align, height: box.h, display: "flex", flexDirection: "column", justifyContent: "center", fontWeight: el.bold ? 700 : 400 };
       break;

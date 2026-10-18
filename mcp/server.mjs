@@ -99,7 +99,7 @@ function call(method, params = {}) {
 
 // ---------- MCP server ----------
 
-const server = new McpServer({ name: "infiniteboard", version: "0.2.0" }, { instructions: INSTRUCTIONS });
+const server = new McpServer({ name: "infiniteboard", version: "0.3.0" }, { instructions: INSTRUCTIONS });
 registerBoardTools(server, call);
 await server.connect(new StdioServerTransport());
 log("MCP server ready on stdio");

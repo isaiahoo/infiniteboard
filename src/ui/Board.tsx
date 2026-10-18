@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { render } from "../canvas/render";
+import { emptyOverlay, render } from "../canvas/render";
 import { imageFileToAsset } from "../core/persist";
 import { makeImage } from "../core/ops";
 import type { Editor, PointerInput } from "../interaction/editor";
@@ -30,7 +30,18 @@ export function Board({ editor }: { editor: Editor }) {
       render(ctx, editor.doc, editor.camera, editor.viewW, editor.viewH, dpr, editor.overlay, () => editor.requestRender());
     };
     editor.onRender = draw;
-    editor.capture = async (maxWidth, format = "png") => {
+    editor.capture = async (maxWidth, format = "png", region) => {
+      if (region) {
+        // Render the region off-screen at a readable scale, without touching the user's camera.
+        const m = 40;
+        const zoom = Math.min(2, maxWidth / (region.w + m * 2), 2400 / (region.h + m * 2));
+        const out = document.createElement("canvas");
+        out.width = Math.max(1, Math.round((region.w + m * 2) * zoom));
+        out.height = Math.max(1, Math.round((region.h + m * 2) * zoom));
+        const cam = { zoom, x: (m - region.x) * zoom, y: (m - region.y) * zoom };
+        render(out.getContext("2d")!, editor.doc, cam, out.width, out.height, 1, emptyOverlay(), () => {});
+        return format === "jpeg" ? out.toDataURL("image/jpeg", 0.85) : out.toDataURL("image/png");
+      }
       draw();
       const k = Math.min(1, maxWidth / canvas.width);
       const out = document.createElement("canvas");

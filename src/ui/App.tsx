@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { makeImage, CLIPBOARD_MIME, parseClipboard } from "../core/ops";
-import { imageFileToAsset, loadDoc, saveDoc } from "../core/persist";
+import { loadBoard, rememberBoard, resolveBoard } from "../core/boards";
+import { imageFileToAsset } from "../core/persist";
+import { BoardSession } from "../core/session";
 import { Store } from "../core/store";
 import { isTextual } from "../core/model";
 import { Editor } from "../interaction/editor";
@@ -19,6 +21,7 @@ import { Minimap } from "./Minimap";
 import { useEditor } from "./useEditor";
 
 const CAMERA_KEY = "whiteboard:camera";
+const cameraKey = (boardId: string) => `${CAMERA_KEY}:${boardId}`;
 const MINIMAP_KEY = "whiteboard:minimap";
 
 function readPref(key: string, fallback: string) {
@@ -52,6 +55,7 @@ export function App() {
   const [editor, setEditor] = useState<Editor | null>(null);
   const [bridge, setBridge] = useState<AiBridge | null>(null);
   const [remote, setRemote] = useState<RemoteLink | null>(null);
+  const [session, setSession] = useState<BoardSession | null>(null);
   const [help, setHelp] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   const [minimap, setMinimap] = useState(() => readPref(MINIMAP_KEY, "on") === "on");
@@ -71,11 +75,20 @@ export function App() {
     let cancelled = false;
     let aiBridge: AiBridge | null = null;
     let remoteLink: RemoteLink | null = null;
-    void loadDoc().then((doc) => {
+    let boardSession: BoardSession | null = null;
+    const params = new URLSearchParams(location.search);
+    void resolveBoard(params.get("board")).then(({ id, doc }) => {
       if (cancelled) return;
+      rememberBoard(id);
+      // Every board has its own address, so it can be bookmarked or reopened.
+      if (params.get("board") !== id) {
+        params.set("board", id);
+        history.replaceState(null, "", `${location.pathname}?${params}${location.hash}`);
+      }
       const ed = new Editor(new Store(doc));
+      ed.boardId = id;
       try {
-        const cam = JSON.parse(localStorage.getItem(CAMERA_KEY) ?? "null");
+        const cam = JSON.parse(localStorage.getItem(cameraKey(id)) ?? (id === "default" ? localStorage.getItem(CAMERA_KEY) : null) ?? "null");
         if (cam && typeof cam.zoom === "number") ed.camera = cam;
         else ed.camera = { x: window.innerWidth / 2, y: window.innerHeight / 2, zoom: 1 };
       } catch {
@@ -92,6 +105,10 @@ export function App() {
       if (import.meta.env.DEV) (window as unknown as { __editor: Editor }).__editor = ed;
       aiBridge = new AiBridge(ed);
       remoteLink = new RemoteLink(ed);
+      boardSession = new BoardSession(id, ed.store, loadBoard);
+      // Large deletions (by an assistant, or clearing the board) leave a restore point first.
+      ed.beforeDestructive = (reason) => boardSession!.checkpoint(reason);
+      setSession(boardSession);
       setEditor(ed);
       setBridge(aiBridge);
       setRemote(remoteLink);
@@ -100,23 +117,19 @@ export function App() {
       cancelled = true;
       aiBridge?.dispose();
       remoteLink?.dispose();
+      boardSession?.dispose();
     };
   }, []);
 
   useEffect(() => {
     if (!editor) return;
-    // Autosave (debounced). Camera is a per-device preference kept in localStorage.
-    let timer = 0;
-    const offStore = editor.store.subscribe((doc) => {
-      clearTimeout(timer);
-      timer = window.setTimeout(() => void saveDoc(doc).catch((e) => console.error("Save failed", e)), 400);
-    });
+    // The board itself is saved by BoardSession. The camera is a per-device preference per board.
     let camTimer = 0;
     const offEditor = editor.subscribe(() => {
       clearTimeout(camTimer);
       camTimer = window.setTimeout(() => {
         try {
-          localStorage.setItem(CAMERA_KEY, JSON.stringify(editor.camera));
+          localStorage.setItem(cameraKey(editor.boardId), JSON.stringify(editor.camera));
         } catch {
           /* storage unavailable */
         }
@@ -181,7 +194,6 @@ export function App() {
     document.addEventListener("cut", cut);
     document.addEventListener("paste", paste);
     return () => {
-      offStore();
       offEditor();
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
@@ -192,14 +204,14 @@ export function App() {
     };
   }, [editor]);
 
-  if (!editor || !bridge || !remote) return <div className="loading">Loading board…</div>;
+  if (!editor || !bridge || !remote || !session) return <div className="loading">Loading board…</div>;
   return (
     <div className="app">
       <Board editor={editor} />
       <BoardChrome editor={editor} remote={remote} aiOpen={aiOpen} onOpenAi={() => setAiOpen(true)} />
       <TextEditor editor={editor} />
       <PropertyBar editor={editor} />
-      <TopBar editor={editor} bridge={bridge} remote={remote} minimap={minimap} onToggleMinimap={toggleMinimap} onHelp={() => setHelp(true)} onOpenAi={() => setAiOpen(true)} />
+      <TopBar editor={editor} bridge={bridge} remote={remote} session={session} minimap={minimap} onToggleMinimap={toggleMinimap} onHelp={() => setHelp(true)} onOpenAi={() => setAiOpen(true)} />
       <Toolbar editor={editor} />
       {minimap && <Minimap editor={editor} />}
       {help && <HelpPanel onClose={() => setHelp(false)} />}

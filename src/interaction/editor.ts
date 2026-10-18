@@ -91,7 +91,11 @@ export class Editor {
   private renderRequested = false;
   onRender: (() => void) | null = null;
   /** Set by the canvas host: renders the current view to a data URL (used by AI screenshots). */
-  capture: ((maxWidth: number, format?: "png" | "jpeg") => Promise<string>) | null = null;
+  capture: ((maxWidth: number, format?: "png" | "jpeg", region?: Rect) => Promise<string>) | null = null;
+  /** Id of the stored board this editor shows. */
+  boardId = "default";
+  /** Called (and awaited) before large deletions so a restore point exists. */
+  beforeDestructive: ((reason: string) => Promise<void>) | null = null;
 
   constructor(readonly store: Store) {
     store.subscribe(() => {

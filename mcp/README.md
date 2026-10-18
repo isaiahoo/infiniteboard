@@ -9,7 +9,9 @@ Lets AI assistants (Claude Code, Claude Desktop, Cursor, VS Code, or any MCP cli
    npx -y infiniteboard-mcp
    ```
 
-3. Ask away: *"Sketch a user-signup flowchart on my board"*.
+3. Ask away: *"Plan a habit-tracking app on my board: users, features, architecture and a roadmap"*.
+
+Assistants can build laid-out flowcharts, system architectures, org charts, mind maps, kanban columns, grids and timelines in one call (`create_diagram`), tidy existing content (`arrange_elements`), and check their work with screenshots that don't move your view. In Claude Code, `/mcp__infiniteboard__plan_board` starts a guided plan of any idea.
 
 The server runs on your machine. The board tab connects to it over `ws://127.0.0.1:3917` only while its AI switch is on.
 

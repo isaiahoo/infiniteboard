@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { elementBounds } from "../core/elements";
-import { PALETTE, STICKY_COLORS, type ArrowHead, type ArrowRoute, type BoardElement, type Dash, type ShapeKind, type TextAlign } from "../core/model";
+import { PALETTE, SHAPE_KINDS, STICKY_COLORS, type ArrowHead, type ArrowRoute, type BoardElement, type Dash, type ShapeKind, type TextAlign } from "../core/model";
 import { selectionBounds } from "../core/ops";
 import type { Editor } from "../interaction/editor";
 import { Icon, type IconName } from "./icons";
@@ -69,7 +69,7 @@ export function PropertyBar({ editor }: { editor: Editor }) {
   if (has("shape")) {
     groups.push(
       <Choice<ShapeKind> key="kind" value={common(els, "kind") as ShapeKind}
-        options={(["rect", "roundrect", "ellipse", "diamond", "triangle"] as const).map((k) => ({ v: k, icon: k, label: k }))}
+        options={SHAPE_KINDS.map((k) => ({ v: k, icon: k, label: k }))}
         onPick={(v) => set({ kind: v })} />,
       picker("fill", "Fill colour", PALETTE, common(els, "fill"), (c) => set({ fill: c, fillOpacity: 1 })),
       <button key="nofill" title="No fill" aria-label="No fill" onClick={() => set({ fillOpacity: 0 })}>∅</button>,

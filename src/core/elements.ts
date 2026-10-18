@@ -2,9 +2,37 @@ import {
   add, boundsOfPoints, center, dist, distToPolyline, expandRect, mul, overlapRatio, pointInRect, rotate, rotatedBounds,
   sub, toLocal, type Rect, type Vec,
 } from "./geom";
-import type { ArrowEl, ArrowEnd, BoardElement, Doc, FrameEl, StrokeEl } from "./model";
+import type { ArrowEl, ArrowEnd, BoardElement, Doc, FrameEl, ShapeEl, StrokeEl } from "./model";
 
 export const boxOf = (el: BoardElement): Rect => ({ x: el.x, y: el.y, w: el.w, h: el.h });
+
+/** Height of a cylinder's elliptical cap (the top ellipse is twice this tall). */
+export const cylinderCap = (w: number, h: number) => Math.min(h * 0.12, w * 0.15);
+
+/** Where a shape's text goes: the largest comfortable box inside its outline (un-rotated). */
+export function shapeTextBox(el: ShapeEl): Rect {
+  const { x, y, w, h } = el;
+  const pad = Math.max(6, Math.min(w, h) * 0.1);
+  const inset = (l: number, t: number, r = l, b = t): Rect => ({ x: x + l, y: y + t, w: Math.max(1, w - l - r), h: Math.max(1, h - t - b) });
+  switch (el.kind) {
+    case "ellipse":
+      return inset(w * 0.15 + 4, h * 0.15 + 4);
+    case "diamond":
+      return inset(w * 0.25, h * 0.25);
+    case "triangle":
+      return inset(w * 0.25, h * 0.45, w * 0.25, pad);
+    case "hexagon":
+      return inset(w * 0.2, pad);
+    case "parallelogram":
+      return inset(Math.min(w * 0.2, h * 0.5) + pad, pad);
+    case "cylinder": {
+      const c = cylinderCap(w, h);
+      return inset(pad, c * 2 + pad / 2, pad, c + pad / 2);
+    }
+    default:
+      return inset(pad, pad);
+  }
+}
 
 /** Paint order: frames first (in their relative order), then everything else. */
 export function paintOrder(doc: Doc): BoardElement[] {
@@ -91,6 +119,12 @@ export function arrowGeometry(doc: Doc, el: ArrowEl): ArrowGeometry {
     return { a, b, points: pts, bezier: [a, c1, c2, b], startDir: unit(sub(a, c1)), endDir: unit(sub(b, c2)) };
   }
 
+  if (el.route === "elbow" && el.via && Math.abs(b.x - a.x - el.via.span.x) < 0.5 && Math.abs(b.y - a.y - el.via.span.y) < 0.5) {
+    const clean = dedupe(orthogonal([a, ...el.via.points.map((p) => add(a, p)), b], da, db));
+    const n = clean.length;
+    return { a, b, points: clean, startDir: unit(sub(clean[0], clean[1])), endDir: unit(sub(clean[n - 1], clean[n - 2])) };
+  }
+
   // Elbow: orthogonal route leaving each bound end perpendicular to its side.
   const pad = 24;
   const sa = da ? axisOf(da) : axisOf(sub(b, a));
@@ -101,10 +135,11 @@ export function arrowGeometry(doc: Doc, el: ArrowEl): ArrowGeometry {
   const aH = sa.x !== 0;
   const bH = sb ? sb.x !== 0 : aH;
   if (aH && bH) {
-    const mx = (a1.x + b1.x) / 2;
+    // Both ends facing the same way (e.g. two right sides): go around, not between them.
+    const mx = sb && sa.x === sb.x ? (sa.x > 0 ? Math.max(a1.x, b1.x) : Math.min(a1.x, b1.x)) : (a1.x + b1.x) / 2;
     pts.push({ x: mx, y: a1.y }, { x: mx, y: b1.y });
   } else if (!aH && !bH) {
-    const my = (a1.y + b1.y) / 2;
+    const my = sb && sa.y === sb.y ? (sa.y > 0 ? Math.max(a1.y, b1.y) : Math.min(a1.y, b1.y)) : (a1.y + b1.y) / 2;
     pts.push({ x: a1.x, y: my }, { x: b1.x, y: my });
   } else if (aH) {
     pts.push({ x: b1.x, y: a1.y });
@@ -117,6 +152,25 @@ export function arrowGeometry(doc: Doc, el: ArrowEl): ArrowGeometry {
   const endDir = n >= 2 ? unit(sub(clean[n - 1], clean[n - 2])) : { x: 1, y: 0 };
   const startDir = n >= 2 ? unit(sub(clean[0], clean[1])) : { x: -1, y: 0 };
   return { a, b, points: clean, startDir, endDir };
+}
+
+/** Turns a polyline into horizontal/vertical segments, leaving and entering along the given side directions. */
+function orthogonal(pts: Vec[], da: Vec | null, db: Vec | null): Vec[] {
+  const out: Vec[] = [pts[0]];
+  let horiz = da ? Math.abs(da.x) > Math.abs(da.y) : Math.abs(pts[1].x - pts[0].x) > Math.abs(pts[1].y - pts[0].y);
+  for (let i = 1; i < pts.length; i++) {
+    const p = out[out.length - 1], q = pts[i];
+    if (Math.abs(p.x - q.x) < 0.5 || Math.abs(p.y - q.y) < 0.5) {
+      out.push(q);
+      horiz = Math.abs(p.y - q.y) < 0.5;
+      continue;
+    }
+    // The last bend is chosen so the line arrives perpendicular to the target's side.
+    if (i === pts.length - 1 && db) horiz = Math.abs(db.x) <= Math.abs(db.y);
+    out.push(horiz ? { x: q.x, y: p.y } : { x: p.x, y: q.y }, q);
+    horiz = !horiz;
+  }
+  return out;
 }
 
 function dedupe(pts: Vec[]): Vec[] {

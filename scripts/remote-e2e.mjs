@@ -142,7 +142,7 @@ try {
   // ---------- real MCP over Streamable HTTP ----------
   const client = await mcpClient(tokens.access_token);
   const tools = (await client.listTools()).tools.map((t) => t.name);
-  check("tools/list over remote MCP", ["get_board", "create_elements", "update_elements", "delete_elements", "focus_view", "get_screenshot", "undo", "redo"].every((t) => tools.includes(t)));
+  check("tools/list over remote MCP", ["get_board", "create_elements", "create_diagram", "arrange_elements", "update_elements", "delete_elements", "focus_view", "get_screenshot", "undo", "redo"].every((t) => tools.includes(t)));
 
   let t0 = Date.now();
   let b = await tool(client, "get_board");
@@ -172,6 +172,13 @@ try {
   await tool(client, "undo");
   b = await tool(client, "get_board");
   check("undo through the relay", b.elements.find((e) => e.id === sticky)?.text === "From the cloud");
+  const dg = await tool(client, "create_diagram", {
+    layout: "flow", title: "Relay diagram", place: { x: 2000, y: 800 }, focus: false,
+    nodes: [{ id: "a", text: "Start", kind: "terminal" }, { id: "b", text: "Ok?", kind: "decision" }, { id: "c", text: "Store", kind: "database" }],
+    edges: [{ from: "a", to: "b" }, { from: "b", to: "c", label: "yes" }],
+  });
+  check("create_diagram through the relay", Object.keys(dg.nodes).length === 3 && !!dg.section);
+  b = await tool(client, "get_board");
 
   // ---------- refresh token rotation ----------
   const refresh = async (rt) => (await fetch(`${BASE}/api/oauth/token`, {

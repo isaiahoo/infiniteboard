@@ -1,6 +1,6 @@
 {
   "name": "infiniteboard-mcp",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Let AI assistants (Claude, Cursor, VS Code, any MCP client) draw on your open Infiniteboard whiteboard",
   "type": "module",
   "bin": {

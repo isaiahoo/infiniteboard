@@ -2,7 +2,7 @@
 import { boxOf, endPoint } from "../core/elements";
 import { center, type Rect, type Vec } from "../core/geom";
 import {
-  STICKY_COLORS, type ArrowEl, type ArrowEnd, type BoardElement, type ShapeKind, type TextAlign,
+  SHAPE_KINDS, STICKY_COLORS, type ArrowEl, type ArrowEnd, type BoardElement, type ShapeKind, type TextAlign,
 } from "../core/model";
 import {
   assignFrames, deleteElements, makeArrow, makeFrame, makeShape, makeSticky, makeStroke, makeText, patchStyle,
@@ -10,6 +10,7 @@ import {
 } from "../core/ops";
 import { measureTextBlockHeight } from "../core/text";
 import type { Editor } from "../interaction/editor";
+import { arrangeElements, createDiagram, type ArrangeSpec, type DiagramSpec } from "./diagram";
 
 
 const NAMED: Record<string, string> = {
@@ -17,7 +18,7 @@ const NAMED: Record<string, string> = {
   blue: STICKY_COLORS[4], green: STICKY_COLORS[5], lime: STICKY_COLORS[6], gray: STICKY_COLORS[7], grey: STICKY_COLORS[7],
   white: "#ffffff", black: "#1e1e1e", red: "#e5484d", darkblue: "#3e63dd", darkgreen: "#30a46c",
 };
-const SHAPES: ShapeKind[] = ["rect", "roundrect", "ellipse", "diamond", "triangle"];
+const SHAPES = SHAPE_KINDS;
 
 function color(v: unknown): string | undefined {
   if (typeof v !== "string") return undefined;
@@ -84,12 +85,47 @@ export function describe(doc: Editor["doc"], el: BoardElement): Record<string, u
   return out;
 }
 
-export function getBoard(editor: Editor, params: { type?: string; limit?: number } = {}) {
+/** One line per section: frames with what's inside, plus headings and loose content. Cheap on big boards. */
+function outline(editor: Editor) {
+  const doc = editor.doc;
+  const count = (els: BoardElement[]) => {
+    const c: Record<string, number> = {};
+    for (const el of els) {
+      const t = el.type === "arrow" ? "connector" : el.type;
+      c[t] = (c[t] ?? 0) + 1;
+    }
+    return c;
+  };
+  const els = doc.order.map((id) => doc.elements[id]).filter(Boolean);
+  const r = (b: Rect | null) => b && { x: Math.round(b.x), y: Math.round(b.y), w: Math.round(b.w), h: Math.round(b.h) };
+  const frames = els.filter((el) => el.type === "frame").map((f) => {
+    const kids = els.filter((el) => el.parentId === f.id);
+    const texts = kids.filter((el) => (el.type === "shape" || el.type === "sticky" || el.type === "text") && el.text).map((el) => (el as { text: string }).text.split("\n")[0].slice(0, 40));
+    return { id: f.id, title: (f as { title: string }).title, bounds: r(boxOf(f)), contains: count(kids), sample: texts.slice(0, 6) };
+  });
+  const loose = els.filter((el) => el.type !== "frame" && !el.parentId);
+  const headings = loose.filter((el) => el.type === "text" && el.fontSize >= 24).map((el) => ({ id: el.id, text: (el as { text: string }).text, x: Math.round(el.x), y: Math.round(el.y) }));
+  return { frames, headings, outsideFrames: count(loose) };
+}
+
+export function getBoard(editor: Editor, params: { type?: string; limit?: number; frame?: string; outline?: boolean } = {}) {
   const doc = editor.doc;
   const limit = Math.min(Math.max(1, num(params.limit) ?? 500), 5000);
   const typeFilter = params.type === "connector" ? "arrow" : params.type;
-  const all = doc.order.map((id) => doc.elements[id]).filter((el) => el && (!typeFilter || el.type === typeFilter));
+  if (params.frame && doc.elements[params.frame]?.type !== "frame") throw new Error(`\`frame\`: "${params.frame}" is not a frame`);
+  const inFrame = (el: BoardElement) => {
+    if (!params.frame) return true;
+    if (el.id === params.frame || el.parentId === params.frame) return true;
+    // Connectors count when both ends sit in the frame.
+    if (el.type !== "arrow") return false;
+    const ends = [el.start.bind?.id, el.end.bind?.id].map((id) => (id ? doc.elements[id]?.parentId : null));
+    return ends.every((p) => p === params.frame);
+  };
+  const all = doc.order.map((id) => doc.elements[id]).filter((el) => el && (!typeFilter || el.type === typeFilter) && inFrame(el));
   const cam = editor.camera;
+  if (params.outline) {
+    return { title: doc.title, elementCount: doc.order.length, contentBounds: selectionBounds(doc, doc.order), ...outline(editor) };
+  }
   return {
     title: doc.title,
     elementCount: doc.order.length,
@@ -311,7 +347,9 @@ export function focusView(editor: Editor, params: { ids?: string[]; zoom?: numbe
   return { viewport: getBoard(editor, { limit: 1 }).viewport };
 }
 
-export type CommandName = "get_board" | "create_elements" | "update_elements" | "delete_elements" | "focus_view" | "select" | "undo" | "redo" | "screenshot";
+export type CommandName =
+  | "get_board" | "create_elements" | "create_diagram" | "arrange_elements" | "update_elements" | "delete_elements" | "focus_view"
+  | "select" | "undo" | "redo" | "screenshot";
 
 /** Dispatches one bridge request. Unknown methods are rejected. */
 export async function runCommand(editor: Editor, method: string, params: Record<string, unknown> = {}): Promise<unknown> {
@@ -320,10 +358,17 @@ export async function runCommand(editor: Editor, method: string, params: Record<
       return getBoard(editor, params);
     case "create_elements":
       return createElements(editor, params as { elements?: ElementSpec[] });
+    case "create_diagram":
+      return createDiagram(editor, params as DiagramSpec);
+    case "arrange_elements":
+      return arrangeElements(editor, params as ArrangeSpec);
     case "update_elements":
       return updateElements(editor, params as { updates?: ElementUpdate[] });
-    case "delete_elements":
+    case "delete_elements": {
+      const n = params.all ? editor.doc.order.length : Array.isArray(params.ids) ? params.ids.length : 0;
+      if (n >= 10 && editor.beforeDestructive) await editor.beforeDestructive(params.all ? "Before an assistant cleared the board" : `Before an assistant deleted ${n} items`);
       return deleteElementsCmd(editor, params as { ids?: string[]; all?: boolean });
+    }
     case "focus_view":
       return focusView(editor, params);
     case "select": {
@@ -339,7 +384,11 @@ export async function runCommand(editor: Editor, method: string, params: Record<
       return { ok: true, canRedo: editor.store.canRedo };
     case "screenshot": {
       if (!editor.capture) throw new Error("Screenshot is not available in this environment");
-      return { image: await editor.capture(num(params.maxWidth) ?? 1280, params.format === "jpeg" ? "jpeg" : "png") };
+      // A region (element ids or a rectangle) is rendered off-screen, so the user's view doesn't move.
+      const ids = Array.isArray(params.ids) ? (params.ids as string[]).filter((id) => editor.doc.elements[id]) : [];
+      const b = params.bounds as Rect | undefined;
+      const region = ids.length ? selectionBounds(editor.doc, ids) : b && num(b.w) && num(b.h) ? b : params.all ? selectionBounds(editor.doc, editor.doc.order) : null;
+      return { image: await editor.capture(num(params.maxWidth) ?? 1280, params.format === "jpeg" ? "jpeg" : "png", region ?? undefined) };
     }
     default:
       throw new Error(`Unknown method "${method}"`);

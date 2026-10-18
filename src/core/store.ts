@@ -184,6 +184,15 @@ export class Store {
     this.emit();
   }
 
+  /**
+   * Swaps in a document changed elsewhere (another tab) without touching history. Undo keeps working
+   * per element; `apply` repairs the paint order if an old step refers to elements that changed.
+   */
+  replaceExternal(doc: Doc) {
+    this._doc = doc;
+    this.emit();
+  }
+
   /** Changes settings without recording history (view preferences, not content). */
   setSettings(fields: Partial<Doc["settings"]>) {
     this._doc = { ...this._doc, settings: { ...this._doc.settings, ...fields } };
@@ -196,9 +205,38 @@ export class Store {
       if (el) elements[id] = el;
       else delete elements[id];
     }
-    this._doc = { ...this._doc, elements, order, title };
+    this._doc = { ...this._doc, elements, order: reconcileOrder(order, elements), title };
     this.emit();
   }
+}
+
+/** Paint order that lists every element exactly once (keeps `order`'s sequence, appends any missing). */
+function reconcileOrder(order: readonly string[], elements: Readonly<Record<string, BoardElement>>): readonly string[] {
+  const seen = new Set<string>();
+  const out = order.filter((id) => id in elements && !seen.has(id) && seen.add(id));
+  for (const id in elements) if (!seen.has(id)) out.push(id);
+  return out.length === order.length && out.every((id, i) => order[i] === id) ? order : out;
+}
+
+/**
+ * Three-way merge: `local` edits made since `base`, replayed per element on top of `remote`.
+ * Used when another tab saved the same board while this one had unsaved changes.
+ */
+export function rebase(base: Doc, local: Doc, remote: Doc): Doc {
+  const change = diff(base, local);
+  const settings = local.settings !== base.settings ? local.settings : remote.settings;
+  const assets = local.assets === base.assets ? remote.assets : { ...remote.assets, ...local.assets };
+  // Nothing local to keep: take theirs as-is (the same object, so the caller sees nothing to save).
+  if (!change) return settings === remote.settings && assets === remote.assets ? remote : { ...remote, settings, assets };
+  const elements = { ...remote.elements };
+  for (const [id, el] of Object.entries(change.after)) {
+    if (el) elements[id] = el;
+    else delete elements[id];
+  }
+  const orderChanged = change.orderBefore !== change.orderAfter;
+  const order = reconcileOrder(orderChanged ? [...local.order, ...remote.order] : [...remote.order, ...local.order], elements);
+  const title = local.title !== base.title ? local.title : remote.title;
+  return { title, elements, order, assets, settings };
 }
 
 export function diff(a: Doc, b: Doc): Change | null {

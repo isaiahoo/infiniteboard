@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { boardKey } from "../ai/boardKey";
-import { loadDoc } from "../core/persist";
+import { loadLastBoard } from "../core/boards";
 import "../ui/styles.css";
 import "./connect.css";
 
@@ -23,7 +23,7 @@ function Connect() {
   useEffect(() => {
     if (!requestId) return setState({ kind: "error", message: "This page is opened by your AI app when you connect InfiniteBoard." });
     void (async () => {
-      const [res, doc] = await Promise.all([fetch(`/api/oauth/request?id=${encodeURIComponent(requestId)}`), loadDoc()]);
+      const [res, doc] = await Promise.all([fetch(`/api/oauth/request?id=${encodeURIComponent(requestId)}`), loadLastBoard()]);
       const body = await res.json().catch(() => ({}));
       if (!res.ok) return setState({ kind: "error", message: body.error ?? "Something went wrong. Try connecting again." });
       setState({ kind: "ask", info: body as Info, title: doc.title, count: doc.order.length });

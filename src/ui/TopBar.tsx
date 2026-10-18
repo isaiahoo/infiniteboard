@@ -1,8 +1,11 @@
-import { useRef, useState, useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
 import type { AiBridge } from "../ai/bridge";
 import type { RemoteLink } from "../ai/remote";
-import { downloadBlob, exportJson, importJson } from "../core/persist";
-import { emptyDoc } from "../core/model";
+import { createBoard } from "../core/boards";
+import { downloadBlob, exportJson } from "../core/persist";
+import type { BoardSession } from "../core/session";
+import { deleteElements } from "../core/ops";
+import { BoardsDialog, HistoryDialog, openBoard } from "./BoardsDialog";
 import type { Editor } from "../interaction/editor";
 import { Icon } from "./icons";
 import { addSampleBoard } from "./sample";
@@ -19,6 +22,7 @@ interface Props {
   editor: Editor;
   bridge: AiBridge;
   remote: RemoteLink;
+  session: BoardSession;
   minimap: boolean;
   onToggleMinimap: () => void;
   onHelp: () => void;
@@ -32,7 +36,19 @@ const AI_TITLE = {
   replaced: "AI assistant is connected to another tab",
 } as const;
 
-export function TopBar({ editor, bridge, remote, minimap, onToggleMinimap, onHelp, onOpenAi }: Props) {
+const SAVE_LABEL = { saved: "Saved", saving: "Saving…", error: "Not saved" } as const;
+const SAVE_TITLE = {
+  saved: "Saved in this browser. Earlier versions are in the menu under Version history.",
+  saving: "Saving in this browser…",
+  error: "Couldn't save to this browser's storage (it may be full). Retrying; your changes are kept while this tab is open. Export the board to keep a copy.",
+} as const;
+
+function SaveStatus({ session }: { session: BoardSession }) {
+  const status = useSyncExternalStore(session.subscribe, session.getStatus);
+  return <span className={`save-status ${status}`} role="status" title={SAVE_TITLE[status]}>{SAVE_LABEL[status]}</span>;
+}
+
+export function TopBar({ editor, bridge, remote, session, minimap, onToggleMinimap, onHelp, onOpenAi }: Props) {
   useEditor(editor);
   const localStatus = useSyncExternalStore(bridge.subscribe, () => bridge.status);
   useSyncExternalStore(remote.subscribe, remote.getSnapshot);
@@ -43,7 +59,7 @@ export function TopBar({ editor, bridge, remote, minimap, onToggleMinimap, onHel
     : remote.status === "off" && localStatus === "off" ? "off"
     : "connecting";
   const [menu, setMenu] = useState(false);
-  const file = useRef<HTMLInputElement>(null);
+  const [dialog, setDialog] = useState<"boards" | "history" | null>(null);
   const { store } = editor;
   const settings = store.doc.settings;
 
@@ -65,6 +81,7 @@ export function TopBar({ editor, bridge, remote, minimap, onToggleMinimap, onHel
             }}
             onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
           />
+          <SaveStatus session={session} />
         </div>
         <div className="pill">
           <button title="Undo (Ctrl/Cmd+Z)" aria-label="Undo" disabled={!store.canUndo} onClick={() => store.undo()}>
@@ -108,8 +125,11 @@ export function TopBar({ editor, bridge, remote, minimap, onToggleMinimap, onHel
 
       {menu && (
         <div className="menu" role="menu" onPointerLeave={() => setMenu(false)}>
-          <button onClick={() => downloadBlob(exportJson(store.doc), `${store.doc.title || "board"}.whiteboard.json`)}>Export board (.json)</button>
-          <button onClick={() => file.current?.click()}>Import board…</button>
+          <button onClick={() => { setMenu(false); setDialog("boards"); }}>All boards…</button>
+          <button onClick={async () => openBoard(session, await createBoard())}>New board</button>
+          <button onClick={() => { setMenu(false); setDialog("history"); }}>Version history…</button>
+          <button onClick={() => downloadBlob(exportJson(store.doc), `${store.doc.title || "board"}.whiteboard.json`)}>Export this board (.json)</button>
+          <div className="menu-sep" />
           <button
             onClick={() => {
               const c = editor.viewportCenter();
@@ -145,34 +165,21 @@ export function TopBar({ editor, bridge, remote, minimap, onToggleMinimap, onHel
           </label>
           <button
             className="danger"
-            onClick={() => {
-              if (confirm("Clear the whole board? This cannot be undone.")) {
-                store.reset({ ...emptyDoc(), settings });
-                editor.select([]);
-              }
+            disabled={!store.doc.order.length}
+            onClick={async () => {
+              setMenu(false);
+              // Undoable, and a restore point is kept in Version history.
+              await session.checkpoint("Before clearing the board");
+              store.transact((d) => deleteElements(d, [...d.doc.order]));
+              editor.select([]);
             }}
           >
             Clear board
           </button>
         </div>
       )}
-      <input
-        ref={file}
-        type="file"
-        accept="application/json,.json"
-        hidden
-        onChange={async (e) => {
-          const f = e.target.files?.[0];
-          e.target.value = "";
-          if (!f) return;
-          const doc = await importJson(f);
-          if (!doc) return alert("That file is not a whiteboard export.");
-          store.reset(doc);
-          editor.select([]);
-          editor.zoomToFit();
-          setMenu(false);
-        }}
-      />
+      {dialog === "boards" && <BoardsDialog editor={editor} session={session} onClose={() => setDialog(null)} />}
+      {dialog === "history" && <HistoryDialog editor={editor} session={session} onClose={() => setDialog(null)} />}
     </>
   );
 }

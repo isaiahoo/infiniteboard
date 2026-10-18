@@ -24,7 +24,7 @@ async function handle(request) {
   }
   if (!auth) return unauthorized(request, !!request.headers.get("authorization"));
 
-  const server = new McpServer({ name: "infiniteboard", version: "0.2.0" }, { instructions: INSTRUCTIONS });
+  const server = new McpServer({ name: "infiniteboard", version: "0.3.0" }, { instructions: INSTRUCTIONS });
   registerBoardTools(server, (method, params = {}) =>
     // Screenshots go through Redis, so keep them compact.
     callBoard(auth.boardId, method, method === "screenshot" ? { maxWidth: 1280, ...params, format: "jpeg" } : params),
