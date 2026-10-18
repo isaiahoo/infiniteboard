@@ -152,7 +152,7 @@ await key("Delete", "Delete");
 s = await state();
 check("Delete removes the selection", s.els.length === 0);
 await sleep(100);
-check("empty board shows a hint", await evaluate("!!document.querySelector('.empty-hint')"));
+check("empty board shows the start guide", await evaluate("!!document.querySelector('.start-guide')"));
 await key("?", "Slash", 8);
 await sleep(100);
 check("? opens the shortcuts panel", await evaluate("!!document.querySelector('.help')"));
@@ -199,7 +199,7 @@ check("dialog shows the connector address", await evaluate("[...document.querySe
 await shot("05-ai-dialog.png");
 const cc = await evaluate("(() => { const b = [...document.querySelectorAll('.app-option')].find((x) => x.textContent.includes('Claude Code')); const r = b.getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; })()");
 await click(...cc);
-check("Claude Code tab shows the remote add command", await evaluate("[...document.querySelectorAll('.steps pre')].some((p) => p.textContent.startsWith('claude mcp add --transport http infiniteboard '))"));
+check("Claude Code tab shows the remote add command", await evaluate("[...document.querySelectorAll('.steps pre')].some((p) => p.textContent.startsWith('claude mcp add --transport http --scope user infiniteboard '))"));
 // Short window: the dialog must fit the viewport and its body must scroll to the last prompt.
 await send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 600, deviceScaleFactor: 1, mobile: false });
 await sleep(150);

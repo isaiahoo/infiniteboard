@@ -4,3 +4,4 @@ e2e-output
 *.tgz
 .DS_Store
 .env*
+.vercel

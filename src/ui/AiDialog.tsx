@@ -4,7 +4,7 @@ import type { RemoteLink } from "../ai/remote";
 import { Icon } from "./icons";
 
 export const MCP_PACKAGE = "infiniteboard-mcp";
-const SERVER_NAME = "infiniteboard";
+export const SERVER_NAME = "infiniteboard";
 
 type AppId = "claude" | "claude-code" | "cursor" | "vscode" | "other";
 
@@ -16,7 +16,7 @@ const APPS: { id: AppId; name: string; sub: string }[] = [
   { id: "other", name: "Something else", sub: "remote MCP apps" },
 ];
 
-const PROMPTS = [
+export const PROMPTS = [
   "Look at my InfiniteBoard and summarise what's on it.",
   "Draw a flowchart of a user signing up, with a decision for email verification.",
   "Group the sticky notes by theme into frames and give each frame a title.",
@@ -26,7 +26,7 @@ const PROMPTS = [
 const isLocalHost = () => ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
 const shellQuote = (s: string) => (/^[\w@%+=:,./-]+$/.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`);
 
-function CopyBlock({ text, label }: { text: string; label?: string }) {
+export function CopyBlock({ text, label, onCopy }: { text: string; label?: string; onCopy?: () => void }) {
   const [copied, setCopied] = useState(false);
   return (
     <div className="copy-block">
@@ -35,6 +35,7 @@ function CopyBlock({ text, label }: { text: string; label?: string }) {
         className="copy-btn"
         aria-label={label ?? "Copy"}
         onClick={() => {
+          onCopy?.();
           void navigator.clipboard.writeText(text).then(() => {
             setCopied(true);
             setTimeout(() => setCopied(false), 1500);
@@ -56,13 +57,14 @@ function RemoteSteps({ app, url }: { app: AppId; url: string }) {
           <li>Name it <b>InfiniteBoard</b>, paste the address above and click <b>Add</b>.</li>
           <li>Click <b>Connect</b>. In the window that opens, choose <b>Allow access</b>. Open that window in the browser where your board is.</li>
           <li>In a chat, turn on InfiniteBoard in the tools menu and ask away.</li>
+          <li className="muted">On a Team or Enterprise plan only an Owner can add connectors (<b>Admin settings → Connectors</b>). Ask them, or use Claude Code.</li>
         </ol>
       );
     case "claude-code":
       return (
         <ol className="steps">
-          <li>Run this in your terminal:<CopyBlock text={`claude mcp add --transport http ${SERVER_NAME} ${url}`} /></li>
-          <li>In Claude Code type <code>/mcp</code>, pick <b>{SERVER_NAME}</b> and choose <b>Authenticate</b>, then allow access in the browser.</li>
+          <li>Run this in your terminal:<CopyBlock text={`claude mcp add --transport http --scope user ${SERVER_NAME} ${url}`} /></li>
+          <li>Start a new Claude Code session (it loads new servers only at startup), type <code>/mcp</code>, pick <b>{SERVER_NAME}</b> and choose <b>Authenticate</b>, then allow access in the browser.</li>
         </ol>
       );
     case "cursor":

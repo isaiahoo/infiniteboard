@@ -14,6 +14,7 @@ import { AiBridge } from "../ai/bridge";
 import { RemoteLink } from "../ai/remote";
 import { HelpPanel } from "./HelpPanel";
 import { AiDialog } from "./AiDialog";
+import { StartGuide } from "./StartGuide";
 import { Minimap } from "./Minimap";
 import { useEditor } from "./useEditor";
 
@@ -28,21 +29,17 @@ function readPref(key: string, fallback: string) {
   }
 }
 
-/** Empty-board hint and the browser tab title; both follow document changes. */
-function BoardChrome({ editor }: { editor: Editor }) {
+/** Start guide on an empty board, and the browser tab title; both follow document changes. */
+function BoardChrome({ editor, remote, aiOpen, onOpenAi }: { editor: Editor; remote: RemoteLink; aiOpen: boolean; onOpenAi: () => void }) {
   useEditor(editor);
   const { doc } = editor;
   useEffect(() => {
     document.title = doc.title ? `${doc.title} · Infiniteboard` : "Infiniteboard";
   }, [doc.title]);
-  if (doc.order.length > 0 || editor.editingId) return null;
-  return (
-    <div className="empty-hint">
-      <strong>Your board is empty</strong>
-      <span>Press N for a sticky note, S for a shape, T for text, or double-click anywhere to type.</span>
-      <span>Press ? for all shortcuts.</span>
-    </div>
-  );
+  // Picking a drawing tool means you're drawing yourself; the card would sit where you draw.
+  const drawing = editor.tool !== "select" && editor.tool !== "hand";
+  if (doc.order.length > 0 || editor.editingId || aiOpen || drawing) return null;
+  return <StartGuide remote={remote} onOpenAi={onOpenAi} />;
 }
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 
@@ -199,7 +196,7 @@ export function App() {
   return (
     <div className="app">
       <Board editor={editor} />
-      <BoardChrome editor={editor} />
+      <BoardChrome editor={editor} remote={remote} aiOpen={aiOpen} onOpenAi={() => setAiOpen(true)} />
       <TextEditor editor={editor} />
       <PropertyBar editor={editor} />
       <TopBar editor={editor} bridge={bridge} remote={remote} minimap={minimap} onToggleMinimap={toggleMinimap} onHelp={() => setHelp(true)} onOpenAi={() => setAiOpen(true)} />
