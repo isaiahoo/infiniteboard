@@ -146,6 +146,8 @@ export function cloneElements(els: BoardElement[], dx: number, dy: number): Boar
   return els.map((e) => {
     const copy = structuredClone(e) as BoardElement;
     copy.id = map.get(e.id)!;
+    // A copy is its own thing, not part of the original's diagram section.
+    delete copy.section;
     copy.parentId = e.parentId && map.has(e.parentId) ? map.get(e.parentId)! : e.parentId;
     if (copy.type === "arrow") {
       for (const end of [copy.start, copy.end]) {

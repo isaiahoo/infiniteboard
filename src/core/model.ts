@@ -20,6 +20,8 @@ interface Base {
   /** Frame this element belongs to (frames themselves never have a parent). */
   parentId: string | null;
   locked?: boolean;
+  /** Diagram section this element was built in (by an assistant), so the section can be found and replaced whole. */
+  section?: string;
 }
 
 export interface TextStyle {

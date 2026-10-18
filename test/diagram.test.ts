@@ -185,3 +185,25 @@ describe("create_diagram replace", () => {
     expect(ed.doc.elements[old.section!]).toBeTruthy();
   });
 });
+
+describe("sections", () => {
+  it("replace removes the whole section even when its groups sit far apart, and copies are left alone", async () => {
+    const ed = setup();
+    const spread = await diagram(ed, {
+      layout: "flow", direction: "right", title: "Spread out",
+      groups: [{ id: "l", title: "Left" }, { id: "r", title: "Far right" }],
+      nodes: [{ id: "a", text: "A", group: "l" }, { id: "b", text: "B" }, { id: "c", text: "C" }, { id: "d", text: "D", group: "r" }],
+      edges: [{ from: "a", to: "b" }, { from: "b", to: "c" }, { from: "c", to: "d", label: "a long way" }],
+      spacing: "roomy",
+    });
+    const members = ed.doc.order.filter((id) => ed.doc.elements[id].section === spread.section);
+    expect(members.length).toBe(ed.doc.order.length);
+    // A user copy of one node must survive the replace.
+    const { duplicate } = await import("../src/core/ops");
+    let copyId = "";
+    ed.store.transact((d) => ([copyId] = duplicate(d, [spread.nodes.a], 0, 800)));
+    await diagram(ed, { layout: "flow", replace: spread.section!, nodes: [{ id: "x", text: "X" }] });
+    expect(members.every((id) => !ed.doc.elements[id])).toBe(true);
+    expect(ed.doc.elements[copyId]).toBeTruthy();
+  });
+});

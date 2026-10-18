@@ -567,6 +567,13 @@ function origin(editor: Editor, spec: DiagramSpec, size: { w: number; h: number 
   return { x: c.x - size.w / 2, y: c.y - size.h / 2 };
 }
 
+/** Elements built as one section: tagged with the section's id (its frame, heading or first node). */
+export function sectionMembers(doc: Editor["doc"], id: string): BoardElement[] {
+  const el = doc.elements[id];
+  const tag = el?.section ?? id;
+  return doc.order.map((i) => doc.elements[i]).filter((e) => e && e.section === tag);
+}
+
 const boundsOf = (doc: Editor["doc"], el: BoardElement) => (el.type === "frame" ? withTitle(el, boxOf(el)) : elementBounds(doc, el));
 
 /**
@@ -574,6 +581,13 @@ const boundsOf = (doc: Editor["doc"], el: BoardElement) => (el.type === "frame" 
  * under it, a frame and its contents). Sections are placed well apart, so the cluster stops at the gap.
  */
 function sectionBounds(doc: Editor["doc"], el: BoardElement): Rect {
+  const members = sectionMembers(doc, el.id);
+  if (members.length) {
+    const rs = members.map((m) => boundsOf(doc, m));
+    const x = Math.min(...rs.map((r) => r.x)), y = Math.min(...rs.map((r) => r.y));
+    return { x, y, w: Math.max(...rs.map((r) => r.x + r.w)) - x, h: Math.max(...rs.map((r) => r.y + r.h)) - y };
+  }
+  // Not built by create_diagram: the cluster of things around it.
   const reach = 70;
   let r = boundsOf(doc, el);
   const others = doc.order.map((id) => doc.elements[id]).filter((o) => o && o.id !== el.id && o.type !== "arrow").map((o) => boundsOf(doc, o));
@@ -652,7 +666,8 @@ export function createDiagram(editor: Editor, spec: DiagramSpec) {
     if (!old) throw new Error(`\`replace\`: unknown element id "${spec.replace}"`);
     const r = sectionBounds(editor.doc, old);
     const inside = { x: r.x - 1, y: r.y - 1, w: r.w + 2, h: r.h + 2 };
-    victims = editor.doc.order.filter((id) => {
+    const members = sectionMembers(editor.doc, old.id);
+    victims = members.length ? members.map((m) => m.id) : editor.doc.order.filter((id) => {
       const el = editor.doc.elements[id];
       const b = boundsOf(editor.doc, el);
       return b.x >= inside.x && b.y >= inside.y && b.x + b.w <= inside.x + inside.w && b.y + b.h <= inside.y + inside.h;
@@ -664,11 +679,19 @@ export function createDiagram(editor: Editor, spec: DiagramSpec) {
 
   const created = new Map<string, string>();
   const frameIds: Record<string, string> = {};
-  let outerId: string | undefined, headingId: string | undefined;
+  let outerId: string | undefined, headingId: string | undefined, sectionId = "";
   const all: string[] = [];
 
   editor.store.transact((d) => {
-    if (victims.length) deleteElements(d, victims);
+    if (victims.length) {
+      // Things the user put inside the old section's frames stay on the board.
+      const gone = new Set(victims);
+      for (const id of d.doc.order) {
+        const el = d.get(id)!;
+        if (!gone.has(id) && el.parentId && gone.has(el.parentId)) d.patch(id, { parentId: null });
+      }
+      deleteElements(d, victims);
+    }
     if (outer) {
       const p = at({ x: minX, y: minY });
       // Untitled: the heading inside names the section.
@@ -716,6 +739,8 @@ export function createDiagram(editor: Editor, spec: DiagramSpec) {
       all.push(el.id);
     });
     const fresh = d.doc.order.filter((id) => all.includes(id) || !(id in editor.doc.elements));
+    sectionId = outerId ?? headingId ?? created.values().next().value!;
+    for (const id of fresh) d.patch(id, { section: sectionId });
     for (const f of [outerId, ...Object.values(frameIds)]) if (f) recaptureFrame(d, f);
     assignFrames(d, fresh.filter((id) => d.get(id)?.type !== "frame"));
   });
@@ -733,7 +758,7 @@ export function createDiagram(editor: Editor, spec: DiagramSpec) {
   return {
     layout,
     // The handle for this section: its frame, or its heading when the groups are the frames.
-    ...(outerId ?? headingId ? { section: outerId ?? headingId } : {}),
+    section: sectionId,
     nodes: Object.fromEntries(created),
     ...(Object.keys(frameIds).length ? { groups: frameIds } : {}),
     bounds: { x: round(bounds.x), y: round(bounds.y), w: round(bounds.w), h: round(bounds.h) },

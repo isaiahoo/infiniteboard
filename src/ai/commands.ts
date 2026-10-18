@@ -10,7 +10,7 @@ import {
 } from "../core/ops";
 import { measureTextBlockHeight } from "../core/text";
 import type { Editor } from "../interaction/editor";
-import { arrangeElements, createDiagram, type ArrangeSpec, type DiagramSpec } from "./diagram";
+import { arrangeElements, createDiagram, sectionMembers, type ArrangeSpec, type DiagramSpec } from "./diagram";
 
 
 const NAMED: Record<string, string> = {
@@ -385,7 +385,10 @@ export async function runCommand(editor: Editor, method: string, params: Record<
     case "screenshot": {
       if (!editor.capture) throw new Error("Screenshot is not available in this environment");
       // A region (element ids or a rectangle) is rendered off-screen, so the user's view doesn't move.
-      const ids = Array.isArray(params.ids) ? (params.ids as string[]).filter((id) => editor.doc.elements[id]) : [];
+      // A section id stands for the whole section.
+      const ids = Array.isArray(params.ids)
+        ? (params.ids as string[]).flatMap((id) => [id, ...sectionMembers(editor.doc, id).map((m) => m.id)]).filter((id) => editor.doc.elements[id])
+        : [];
       const b = params.bounds as Rect | undefined;
       const region = ids.length ? selectionBounds(editor.doc, ids) : b && num(b.w) && num(b.h) ? b : params.all ? selectionBounds(editor.doc, editor.doc.order) : null;
       return { image: await editor.capture(num(params.maxWidth) ?? 1280, params.format === "jpeg" ? "jpeg" : "png", region ?? undefined) };
