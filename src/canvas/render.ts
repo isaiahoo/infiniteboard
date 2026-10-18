@@ -1,6 +1,6 @@
 import { visibleWorldRect, worldToScreen, type Camera } from "../core/camera";
 import { cylinderCap, shapeTextBox,
-  arrowGeometry, arrowLabelRect, boxOf, elementBounds, endPoint, frameTitleRect, LABEL_FONT_SIZE, paintOrder,
+  arrowGeometry, arrowLabelRect, boxOf, elementBounds, endPoint, frameTitleRect, frameTitleScale, LABEL_FONT_SIZE, paintOrder,
   strokeWorldPoints,
 } from "../core/elements";
 import { center, expandRect, rectsIntersect, rotatedCorners, type Rect, type Vec } from "../core/geom";
@@ -151,12 +151,13 @@ function drawElement(ctx: CanvasRenderingContext2D, doc: Doc, el: BoardElement, 
       ctx.lineWidth = (ov.frameDropTarget === el.id ? 2 : 1) / zoom;
       ctx.strokeStyle = ov.frameDropTarget === el.id ? ACCENT : "rgba(0,0,0,0.12)";
       ctx.strokeRect(el.x, el.y, el.w, el.h);
-      if (!editing) {
+      // A section frame with no title is named by the heading inside it.
+      if (!editing && el.title) {
         const tr = frameTitleRect(el, zoom);
-        ctx.font = fontString(13 / zoom);
+        ctx.font = fontString(13 * frameTitleScale(zoom));
         ctx.fillStyle = isDark(doc.settings.background) ? "rgba(255,255,255,0.8)" : "#555";
         ctx.textBaseline = "middle";
-        ctx.fillText(el.title || "Frame", tr.x, tr.y + tr.h / 2, el.w);
+        ctx.fillText(el.title, tr.x, tr.y + tr.h / 2, el.w);
       }
       return;
     }

@@ -321,9 +321,16 @@ export function elementBounds(doc: Doc, el: BoardElement): Rect {
 
 export const FRAME_TITLE_H = 22; // screen px
 
+/**
+ * World units per screen pixel for frame titles: constant on screen when zoomed in, but below 60%
+ * zoom they shrink with the board, so titles never outgrow the content (or the headings) on overviews.
+ */
+export const frameTitleScale = (zoom: number) => Math.min(1 / zoom, 1 / 0.6);
+
 export function frameTitleRect(el: FrameEl, zoom: number): Rect {
-  const h = FRAME_TITLE_H / zoom;
-  return { x: el.x, y: el.y - h - 4 / zoom, w: Math.min(el.w, Math.max(80, el.title.length * 9) / zoom), h };
+  const k = frameTitleScale(zoom);
+  const h = FRAME_TITLE_H * k;
+  return { x: el.x, y: el.y - h - 4 * k, w: Math.min(el.w, Math.max(80, el.title.length * 9) * k), h };
 }
 
 export function hitTest(doc: Doc, el: BoardElement, p: Vec, zoom: number): boolean {

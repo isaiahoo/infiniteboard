@@ -202,6 +202,8 @@ function tint(hex: string) {
 }
 
 const FRAME_PAD = 32;
+/** Section headings: clearly larger than frame titles at any zoom. */
+const HEADING_SIZE = 40;
 
 function framesAround(spec: DiagramSpec, boxes: Box[], nodes: DiagramNode[], pad = FRAME_PAD) {
   return groupOrder(spec, nodes).flatMap((g, i) => {
@@ -591,7 +593,7 @@ function sectionBounds(doc: Editor["doc"], el: BoardElement): Rect {
 
 /** Frame titles are drawn above the frame; count that space when placing things. */
 function withTitle(f: FrameEl | { title: string; rect: Rect }, r: Rect): Rect {
-  const t = frameTitleRect({ ...(f as FrameEl), ...r }, 1);
+  const t = frameTitleRect({ ...(f as FrameEl), ...r }, 0.01);
   return { x: r.x, y: t.y, w: r.w, h: r.y + r.h - t.y };
 }
 
@@ -624,21 +626,23 @@ export function createDiagram(editor: Editor, spec: DiagramSpec) {
     maxX += 60;
   }
 
-  // A titled diagram gets an outer frame, unless it already has group frames (frames don't nest):
-  // then the title becomes a heading above it.
+  // A titled diagram gets a heading. Without group frames it also gets a section frame holding the
+  // heading and the diagram, so the section moves as one; with group frames (frames don't nest) the
+  // heading sits above them.
   const pad = 48;
-  const outer = spec.title && !laid.frames.length;
-  const headingH = spec.title && !outer ? 48 : 0;
+  const outer = !!spec.title && !laid.frames.length;
+  const headingH = spec.title ? HEADING_SIZE * 1.3 + 24 : 0;
+  const headingAt = { x: minX, y: minY - headingH };
+  minY -= headingH;
   if (outer) {
     minX -= pad;
     minY -= pad;
     maxX += pad;
     maxY += pad;
   }
-  const size = { w: maxX - minX, h: maxY - minY + headingH + (outer ? 26 : 0) };
+  const size = { w: maxX - minX, h: maxY - minY };
   const o = origin(editor, spec, size);
-  // Shift so the top-left of the whole thing (title bar included) lands on the origin.
-  const dx = o.x - minX, dy = o.y - minY + headingH + (outer ? 26 : 0);
+  const dx = o.x - minX, dy = o.y - minY;
   const at = (p: Vec): Vec => ({ x: p.x + dx, y: p.y + dy });
 
   const created = new Map<string, string>();
@@ -649,7 +653,8 @@ export function createDiagram(editor: Editor, spec: DiagramSpec) {
   editor.store.transact((d) => {
     if (outer) {
       const p = at({ x: minX, y: minY });
-      const f = makeFrame({ x: p.x, y: p.y, w: maxX - minX, h: maxY - minY }, spec.title!);
+      // Untitled: the heading inside names the section.
+      const f = makeFrame({ x: p.x, y: p.y, w: maxX - minX, h: maxY - minY }, "");
       d.insert(f, 0);
       outerId = f.id;
       all.push(f.id);
@@ -661,11 +666,11 @@ export function createDiagram(editor: Editor, spec: DiagramSpec) {
       frameIds[fr.id] = f.id;
       all.push(f.id);
     }
-    if (headingId === undefined && headingH) {
-      const p = at({ x: minX, y: minY - headingH });
+    if (headingH) {
+      const p = at(headingAt);
       const t = makeText(p, null, spec.title!);
-      const w = Math.max(200, measureText(spec.title!, fontString(28, true)) + 24);
-      d.set({ ...t, x: p.x, y: p.y, w, h: measureTextBlockHeight(spec.title!, 28, w, true), fontSize: 28, bold: true });
+      const w = Math.max(200, measureText(spec.title!, fontString(HEADING_SIZE, true)) + 24);
+      d.set({ ...t, x: p.x, y: p.y, w, h: measureTextBlockHeight(spec.title!, HEADING_SIZE, w, true), fontSize: HEADING_SIZE, bold: true });
       headingId = t.id;
       all.push(t.id);
     }

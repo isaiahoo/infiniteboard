@@ -1,6 +1,6 @@
 import { useEffect, useRef, type CSSProperties } from "react";
 import { stickyFontSize } from "../canvas/render";
-import { arrowGeometry, boxOf, frameTitleRect, LABEL_FONT_SIZE, pointAlong, shapeTextBox } from "../core/elements";
+import { arrowGeometry, boxOf, frameTitleRect, frameTitleScale, LABEL_FONT_SIZE, pointAlong, shapeTextBox } from "../core/elements";
 import { center, rotate, type Rect } from "../core/geom";
 import type { BoardElement } from "../core/model";
 import { FONT_FAMILY, LINE_HEIGHT, STICKY_PADDING, TEXT_PADDING } from "../core/text";
@@ -76,7 +76,7 @@ export function TextEditor({ editor }: { editor: Editor }) {
     case "frame": {
       const r = frameTitleRect(el, zoom);
       box = { ...r, w: Math.max(r.w, 200 / zoom) };
-      style = { fontSize: 13 / zoom, color: "#555", whiteSpace: "nowrap", lineHeight: `${r.h}px` };
+      style = { fontSize: 13 * frameTitleScale(zoom), color: "#555", whiteSpace: "nowrap", lineHeight: `${r.h}px` };
       singleLine = true;
       break;
     }
