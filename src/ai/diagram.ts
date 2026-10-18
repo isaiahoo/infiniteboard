@@ -6,7 +6,7 @@ import { center, rectsIntersect, type Rect, type Vec } from "../core/geom";
 import {
   STICKY_COLORS, type ArrowEl, type ArrowEnd, type BoardElement, type Dash, type FrameEl, type ShapeEl, type ShapeKind,
 } from "../core/model";
-import { assignFrames, makeArrow, makeFrame, makeShape, makeSticky, makeText, recaptureFrame, selectionBounds } from "../core/ops";
+import { assignFrames, deleteElements, makeArrow, makeFrame, makeShape, makeSticky, makeText, recaptureFrame, selectionBounds } from "../core/ops";
 import type { Draft } from "../core/store";
 import { fontString, measureText, measureTextBlockHeight, textHeight, wrapText } from "../core/text";
 import type { Editor } from "../interaction/editor";
@@ -50,6 +50,8 @@ export interface DiagramSpec {
   place?: Placement;
   spacing?: "compact" | "normal" | "roomy";
   focus?: boolean;
+  /** Id of an existing section (or any element in it) to swap out for this diagram, in place. */
+  replace?: string;
 }
 
 // ---------- appearance ----------
@@ -593,6 +595,7 @@ function sectionBounds(doc: Editor["doc"], el: BoardElement): Rect {
 
 /** Frame titles are drawn above the frame; count that space when placing things. */
 function withTitle(f: FrameEl | { title: string; rect: Rect }, r: Rect): Rect {
+  if (!f.title) return r;
   const t = frameTitleRect({ ...(f as FrameEl), ...r }, 0.01);
   return { x: r.x, y: t.y, w: r.w, h: r.y + r.h - t.y };
 }
@@ -641,7 +644,21 @@ export function createDiagram(editor: Editor, spec: DiagramSpec) {
     maxY += pad;
   }
   const size = { w: maxX - minX, h: maxY - minY };
-  const o = origin(editor, spec, size);
+  // Replacing a section: everything in it goes, and the new diagram takes its top-left corner.
+  let victims: string[] = [];
+  let o: Vec;
+  if (spec.replace) {
+    const old = editor.doc.elements[spec.replace];
+    if (!old) throw new Error(`\`replace\`: unknown element id "${spec.replace}"`);
+    const r = sectionBounds(editor.doc, old);
+    const inside = { x: r.x - 1, y: r.y - 1, w: r.w + 2, h: r.h + 2 };
+    victims = editor.doc.order.filter((id) => {
+      const el = editor.doc.elements[id];
+      const b = boundsOf(editor.doc, el);
+      return b.x >= inside.x && b.y >= inside.y && b.x + b.w <= inside.x + inside.w && b.y + b.h <= inside.y + inside.h;
+    });
+    o = spec.place ? origin(editor, spec, size) : { x: r.x, y: r.y };
+  } else o = origin(editor, spec, size);
   const dx = o.x - minX, dy = o.y - minY;
   const at = (p: Vec): Vec => ({ x: p.x + dx, y: p.y + dy });
 
@@ -651,6 +668,7 @@ export function createDiagram(editor: Editor, spec: DiagramSpec) {
   const all: string[] = [];
 
   editor.store.transact((d) => {
+    if (victims.length) deleteElements(d, victims);
     if (outer) {
       const p = at({ x: minX, y: minY });
       // Untitled: the heading inside names the section.
@@ -697,7 +715,7 @@ export function createDiagram(editor: Editor, spec: DiagramSpec) {
       d.set(el);
       all.push(el.id);
     });
-    const fresh = d.doc.order.filter((id) => !(id in editor.doc.elements));
+    const fresh = d.doc.order.filter((id) => all.includes(id) || !(id in editor.doc.elements));
     for (const f of [outerId, ...Object.values(frameIds)]) if (f) recaptureFrame(d, f);
     assignFrames(d, fresh.filter((id) => d.get(id)?.type !== "frame"));
   });
@@ -720,6 +738,7 @@ export function createDiagram(editor: Editor, spec: DiagramSpec) {
     ...(Object.keys(frameIds).length ? { groups: frameIds } : {}),
     bounds: { x: round(bounds.x), y: round(bounds.y), w: round(bounds.w), h: round(bounds.h) },
     ...(overlaps ? { warning: `Overlaps ${overlaps} existing element(s). Move it with update_elements or place the next diagram with place.near.` } : {}),
+    ...(victims.length ? { replaced: victims.length } : {}),
     ...(note ? { note } : {}),
   };
 }

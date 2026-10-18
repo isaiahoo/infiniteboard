@@ -163,3 +163,25 @@ describe("arrange_elements", () => {
     expect(new Set(ids.map((id) => Math.round(ed.doc.elements[id].y))).size).toBe(1);
   });
 });
+
+describe("create_diagram replace", () => {
+  it("swaps a section in place as one undo step, leaving other sections alone", async () => {
+    const ed = setup();
+    const keep = await diagram(ed, { layout: "grid", title: "Keep me", nodes: [{ id: "k", text: "Keep" }] });
+    const old = await diagram(ed, {
+      layout: "flow", title: "Old", place: { near: keep.section!, side: "right" },
+      nodes: [{ id: "a", text: "A" }, { id: "b", text: "B" }, { id: "c", text: "C" }], edges: [{ from: "a", to: "b" }, { from: "b", to: "c" }],
+    });
+    const oldFrame = ed.doc.elements[old.section!];
+    const before = ed.doc.order.length;
+    const next = await diagram(ed, { layout: "flow", title: "New", replace: old.section!, nodes: [{ id: "x", text: "X" }, { id: "y", text: "Y" }], edges: [{ from: "x", to: "y" }] });
+    expect(ed.doc.elements[old.section!]).toBeUndefined();
+    expect(Object.values(old.nodes).every((id) => !ed.doc.elements[id])).toBe(true);
+    expect(ed.doc.elements[keep.nodes.k]).toBeTruthy();
+    const f = ed.doc.elements[next.section!];
+    expect([Math.round(f.x), Math.round(f.y)]).toEqual([Math.round(oldFrame.x), Math.round(oldFrame.y)]);
+    ed.store.undo();
+    expect(ed.doc.order.length).toBe(before);
+    expect(ed.doc.elements[old.section!]).toBeTruthy();
+  });
+});

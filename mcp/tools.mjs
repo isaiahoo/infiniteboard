@@ -6,7 +6,7 @@ export const INSTRUCTIONS = [
   "Tools for reading and editing the user's open whiteboard (an infinite canvas). The user watches changes live and can undo each call.",
   "For anything with structure (flowcharts, processes, system architecture, org charts, mind maps, feature breakdowns, kanban, roadmaps, timelines, brainstorm clusters) use create_diagram: describe nodes, edges and groups and the board lays them out, sizes nodes to their text and routes the connectors. Don't compute coordinates by hand for those.",
   "For planning a whole product, project or idea, follow the plan_board prompt: a set of titled sections placed side by side, each built with create_diagram, then checked with get_screenshot.",
-  "Use create_elements for small additions (a note, a label, one connector) and update_elements / arrange_elements to edit or tidy. Coordinates are world units, x right, y down; elements have x/y (top-left) and w/h.",
+  "When the user asks to change a diagram, use update_elements for small edits (text, colours) and create_diagram with replace:<section id> to restructure it in place. Use create_elements for small additions (a note, a label, one connector) and arrange_elements to tidy. Coordinates are world units, x right, y down; elements have x/y (top-left) and w/h.",
   "On a board with existing content, start with get_board {outline:true}, then read sections with get_board {frame:id}. Place new work with place:{near:id, side} so it doesn't overlap.",
   "get_screenshot {ids:[...]} shows any region without moving the user's view; check your work with it and fix overlaps or unclear labels.",
 ].join(" ");
@@ -144,6 +144,7 @@ export function registerBoardTools(server, call) {
       ]).optional().describe("Where to put it. Default: to the right of existing content (or centred in view on an empty board)"),
       spacing: z.enum(["compact", "normal", "roomy"]).optional(),
       focus: z.boolean().optional().describe("Move the user's view to the new diagram (default true)"),
+      replace: z.string().optional().describe("To change a diagram you made: its section id (or any element in it). The old one is swapped out in place, as one undo step"),
     },
   }, relay("create_diagram"));
 
